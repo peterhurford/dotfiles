@@ -128,7 +128,6 @@ tmux                                                # Tmux
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
-source ~/.secret_avant_zshrc                        # Source Avant-specific stuff (not public)
 source ~/.secret_zshrc                              # Source API tokens (shh secret)
 GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1                   # Automatically push branches when a new branch is created
 GIT_ALIASES_ICDIFF=1                                # Use icdiff instead of diff
