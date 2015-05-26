@@ -1,0 +1,555 @@
+class CustomerApplication < ActiveRecord::Base
+  include UUIDHelper
+  include ProductTypes
+  include CustomerApplication::OverseerProcessing
+  include CustomerApplication::LetterProcessing
+  include Bronto::Observer
+
+  #
+  # ADDITIONAL ATTRIBUTE DEFS
+  #
+
+  attr_accessor     :skip_save_callbacks, :ran_fraud_reports, :is_customer_request,
+                    :stage_engine, :invoked_from_stage_engine
+  attr_accessible   :promotion_code, :product_type, :loan_purpose
+
+  # Store accessors
+  #
+  # CURRENTLY USED IN APPLICATION PROCESS:
+  # :referrer, :lead_raw, :lead, :partial_application, :income_verification,
+  # :ach_opted_out, :payment_method, :payday_default, :decline_referral,
+  # :risk_disclosure_consent,
+  #
+  # LEGACY:
+  # :short_form, :partial_step_1, :step_1,  :step_2, :pixel_fired,
+  # :partial_personal_information, :bank_account_information
+  #
+  store :information, :accessors => [ :referrer, :lead_raw, :lead,
+                      :partial_application,
+                      :income_verification, :ach_opted_out, :payment_method, :payday_default,
+                      :decline_referral, :risk_disclosure_consent,
+                      :short_form, :partial_step_1, :step_1,  :step_2, :pixel_fired,
+                      :partial_personal_information, :bank_account_information,
+                      :existing_customer_matched_at, :initial_requested_product,
+                      :force_resubmit ]
+
+
+  # Due to a bug in attr_encryptor, make sure encrypted attribtues
+  # are defined AFTER any rails store
+  attr_encrypted    :customer_password, key: AvantEncryption.key
+
+  #
+  # VALIDATIONS
+  #
+
+  # Can't remember why we did this - do we really need it?
+  after_initialize :reset_product_type_to_nil, :if => :new_record?
+
+  before_create :set_step1_variation_if_empty
+  before_save :do_before_save_tasks
+  after_save :do_after_save_tasks
+
+  # if you add another belongs to, update logic in #update_customer_associations!
+  belongs_to :customer, inverse_of: :customer_applications
+  belongs_to :credit_decision
+  belongs_to :lead_object, class_name: "Lead", foreign_key: :lead_id
+
+  has_one :loan
+  has_one :credit_line
+
+  has_many :customer_application_metadata_fields, foreign_key: :customer_application_uuid, primary_key: :uuid
+
+  has_many :affiliate_traffics, order: "created_at desc"
+  has_many :customer_application_logs
+  has_many :promotion_instances, foreign_key: :customer_application_uuid, primary_key: :uuid
+  has_many :promotions,
+            through: :promotion_instances, foreign_key: :promotion_uuid, primary_key: :uuid
+  has_many :user_agent_logs, foreign_key: :customer_application_uuid, primary_key: :uuid
+
+  has_many :threat_metrix_reports, primary_key: :uuid, foreign_key: :session_id, inverse_of: :customer_application, order: 'created_at DESC'
+
+  #
+  # VALIDATIONS
+  #
+  validate :ensure_valid_product_type
+
+  #
+  # CLASS METHODS
+  #
+
+  def self.legacy_stage_values
+    @legacy_stage_values ||= %w(completed income_verification step_2 bank_account_information step_1 lead)
+  end
+
+  def self.stage_values
+    @stage_values ||= %w(completed personal bank_account contract) | legacy_stage_values
+  end
+
+  def self.incomplete_stage_values
+    @incomplete_stage_values ||= stage_values - ["completed"]
+  end
+
+  def self.default_payment_method
+    @default_payment_method ||= locale_GB? ? 'card_payment' : 'ach'
+  end
+
+  #
+  # SCOPES
+  #
+
+  scope :date_ordered, order('customer_applications.created_at DESC')
+
+  scope :incomplete, where(:stage => [self.incomplete_stage_values, nil].flatten)
+  scope :complete, where('stage not in (?) and stage is not null', self.incomplete_stage_values)
+  scope :started, where(arel_table[:stage].not_eq(nil))
+
+  scope :can_apply,  where(cannot_apply_reasons: ["", nil])
+
+  scope :ast_actionable, incomplete.can_apply.where(contactable: true)
+
+  scope :ast_not_done, joins(:customer).joins("LEFT JOIN work_items ON work_items.workable_uuid = customers.uuid AND work_items.workable_type = 'Customer'")
+    .where("work_items.status NOT IN (?)", %w(passed completed))
+
+  # Filter applications that have been created since time+
+  scope :last_created_prior, ->(time) { where('customer_applications.created_at <= ?', time) }
+
+  VARIATIONS = %w(champion challenger)
+
+  ACQUISITION_CHANNELS = [
+    "Mail Offer",
+    "Friends & Family",
+    "TV",
+    "Bus / Train",
+    "Social Media",
+    "Other"
+  ]
+
+  #
+  # INSTANCE METHODS
+  #
+
+  def attempt_setting_customer_password!
+    pw            =  partial_application.try(:[], :customer).try(:[], :password)
+    confirmation  =  partial_application.try(:[], :customer).try(:[], :password_confirmation)
+    if pw && confirmation && pw == confirmation
+      self.customer_password = pw
+      partial_application[:customer][:password] = nil
+      partial_application[:customer][:password_confirmation] = nil
+    end
+  end
+
+  def can_apply?
+    self.cannot_apply_reasons.compact.empty?
+  end
+
+  def do_before_save_tasks
+    unless self.invoked_from_stage_engine
+      # prevents circular logic between customer#ongoing_application <-> stage_engine
+      # so we want to preserve the memoization
+      self.customer.try(:invalidate_ongoing_application_cache)
+    end
+    unless @skip_save_callbacks.present?
+      set_lead_source
+      set_source
+      populate_metadata
+    end
+    attempt_setting_customer_password!
+    record_stage_change
+    save_metadata_fields
+  end
+
+  def do_after_save_tasks
+    create_ast_work_item_if_needed!
+
+    update_ast_queue! unless cannot_apply_reasons.empty?
+  end
+
+  def reset_product_type_to_nil
+    self.product_type = nil
+  end
+
+  def product
+    self.loan || self.credit_line
+  end
+
+  def should_fetch_threat_metrix_report?
+    Rails.env.production? && (!threat_metrix_report || threat_metrix_report.incomplete?)
+  end
+
+  def threat_metrix_report
+    self.uuid && threat_metrix_reports.first
+  end
+
+  def run_fraud_reports!
+    if self.customer
+      if !self.ran_fraud_reports && self.customer.should_fetch_iovation_report?
+        IovationJobProcessor.create(
+          job: 'run_iovation_report!',
+          uuid: self.customer.uuid
+        )
+      end
+      if !self.ran_fraud_reports && should_fetch_threat_metrix_report?
+        ThreatMetrixJobProcessor.create(
+          job: 'run_threat_metrix_report!', 
+          uuid: self.customer.uuid, 
+          application_uuid: self.uuid, 
+        )
+      end
+      self.ran_fraud_reports = true
+    end
+  end
+
+  def incomplete
+    self.class.incomplete_stage_values.include?(self.stage)
+  end
+
+  def ensure_valid_product_type
+    self.product_type = product_type_waterfall
+    if self.product_type && self.partial_application && self.partial_application[:customer_application]
+      self.partial_application[:customer_application][:product_type] = self.product_type
+    end
+    if  customer && state && self.product_type &&
+        !customer.available_product_types.include?(self.product_type.try(:to_sym)) &&
+        !StateLogic.available_products(state).include?(self.product_type.try(:to_sym))
+
+      errors.add(:product_type, "This product type is not offered in your state")
+    end
+  end
+
+  def set_step1_variation_if_empty
+    if self.step1_variation.nil?
+      variation = VARIATIONS.sample      
+      self.step1_variation = variation
+    end
+    true
+  end
+
+  def update_product_type!(product_type)
+    if partial_application[:customer_application]
+      partial_application[:customer_application][:product_type] = product_type
+      self.product_type = product_type
+      save!
+    end
+  end
+
+  def product_type_waterfall
+    if p = self.product
+      return p.product_type.to_s
+    elsif self.customer && self.customer.loans.active.exists?
+      return "installment"
+    elsif self.customer && self.customer.credit_lines.active.exists?
+      return "credit_line"
+    else
+      product_type_partial_application
+    end
+  end
+
+  def product_type_partial_application
+    info_hash = self.information.try(:[], :partial_application)
+    coerced_state = self.customer.try(:address).try(:state) || info_hash.try(:[], :customer_address).try(:[], :state)
+    available_products = StateLogic.available_products(coerced_state).map(&:to_s)
+    info_pt = info_hash.try(:[], :customer_application).try(:[], :product_type)
+    if available_products.include?(info_pt.to_s)
+      return info_pt.try(:to_s)
+    else
+      return available_products.first.try(:to_s)
+    end
+  end
+
+  def declined_for_not_active_state?
+    self.customer.cannot_apply_reasons.include?(:not_in_active_state)
+  end
+
+  def risk_based_disclosure_consent_needed?
+    self.customer && !self.customer.at_best_tier? && self.customer.state_logic.present_risk_based_disclosure?
+  end
+
+  def set_source
+    self.source ||= source_code
+    self.source ||= other_source if other_source
+  end
+
+  def set_lead_source(force = false)
+    if (customer && force) || (customer && !customer.leads.empty? && stage_changed?)
+      l = LeadOwnership.new(customer.leads).determine_priority
+      self.lead_id = l && l.id
+    end
+  end
+
+  def other_source
+    if affiliate_traffic = self.affiliate_network_traffic
+      if affiliate_traffic.affiliate_id && affiliate_traffic.publisher_id
+        return Lead.current_affiliate_network
+      end
+    end
+
+    case referrer
+    when nil                then 'organic'
+    when /google(.+)aclk/   then 'google_ppc'
+    when /google(.+)search/ then 'google_search'
+    when /google/           then 'google_other'
+    when /avantcredit/      then 'organic'
+    else
+      'other'
+    end
+  end
+
+  def affiliate_network_traffic
+    at = self.affiliate_traffics.first
+    if at.nil? && self.customer
+      at = self.customer.affiliate_traffics.first
+    end
+    at
+  end
+
+  def populate_metadata
+    self.contactable = !!email && !email.downcase.include?("@example.com")
+    self.cannot_apply_reasons = customer && customer.cannot_apply_reasons(false)
+    self.credit_decision      = customer && customer.current_decision
+    self.referrer_url       ||= self.referrer
+  end
+
+  # Create an AST work item when we can, mark it complete if possible.
+  #
+  def create_ast_work_item_if_needed!
+    if customer && contactable && !customer.work_items.any? { |wi| wi.ast_processing? }
+      customer.work_items << WorkItem.create_ast
+    end
+  end
+
+  def record_stage_change
+    self.stage ||= PersonalInformationEngine.stage
+    if stage_changed?
+      EventEmitterProcessor.create('stat'  => "app.frontend.customer_application.stage_transition.#{stage}",
+                                   'count' => '1',
+                                   't'     => Time.now.to_i)
+
+      cal = customer_application_logs.build
+      cal.stage           = self.stage
+      cal.lead_id         = self.lead_id
+      cal.credit_decision = customer.try(:current_decision)
+      cal.save
+    end
+  end
+
+  def stage_engine(opts={})
+    # needs to be memoized
+    @stage_engine = nil if !opts.blank?
+    @stage_engine ||= CustomerApplicationStageEngine.new(self, opts)
+  end
+
+  def in_progress?(past_this_stage=nil)
+    check = !new_record? && stage != 'completed' && !stage_engine.completed?
+    if past_this_stage
+      check = check && stage_engine.product_gt_stage?(nil, past_this_stage)
+    end
+    check
+  end
+
+  def completion_percentage
+    stage_engine.completion_percentage
+  end
+
+  def update_customer_associations!(customer_to_stay)
+    # important for merge customer logic
+    # as we keep the new application and associate it with the old_customer
+    if customer_to_stay
+      if !self.new_record? && 
+         !customer_to_stay.new_record? &&
+         (customer_to_go = self.customer) && 
+         (customer_to_go.id != customer_to_stay.id)
+        CreditDecision.where(customer_id: customer_to_go.id).update_all(customer_id: customer_to_stay.id)
+        if l = self.lead_object
+          l.customer = customer_to_stay
+          l.save(validate: false)
+        end
+        IovationReport.where(customer_uuid: customer_to_go.uuid).update_all(customer_uuid: customer_to_stay.uuid)
+        ThreatMetrixReport.where(customer_uuid: customer_to_go.uuid).update_all(customer_uuid: customer_to_stay.uuid)
+      end
+      self.customer = customer_to_stay
+    end
+  end
+
+  # convenience accessors
+  def source_code
+    lead_raw && (lead_raw.is_a?(Hash) ? lead_raw[:lead_provider] : false) ||
+      short_form && short_form[:landing_keyword]
+  end
+
+  def current_source
+    lead_source || source_code || other_source || source
+  end
+
+  def lead_source
+    lead_object && lead_object.source
+  end
+
+  def affiliate_source?
+    @@affiliates ||= YAML.load_file('etc/affiliates.yml')
+    @@affiliates.any? {|a| current_source.include?(a)}
+  end
+
+  def state
+    @state ||= begin
+      if address = customer.try(:address)
+        address.state
+      else
+        state = partial_application && partial_application.try(:[], :customer_address).try(:[], :state)
+        state ||= (step_1 || partial_step_1 || lead).try(:[], :addresses_attributes).try(:[], '0').try(:[], :state)
+      end
+    end
+  end
+
+  def name
+    @name ||= begin
+      if self.customer
+        customer.name
+      else
+        if person = partial_application && partial_application.try(:[], :person)
+          "#{person[:first_name]} #{person[:last_name]}"
+        else
+          source ||= (step_1 || partial_step_1 || lead)
+          "#{source[:person_attributes].try(:[], :first_name)} #{source[:person_attributes].try(:[], :last_name)}"
+        end
+      end
+    end
+
+  end
+
+  def email
+    @email ||= begin
+      if self.customer
+        customer.email
+      else
+        email = partial_application && partial_application.try(:[], :customer).try(:[], :email)
+        email ||= (step_1 || partial_step_1 || lead).try(:[], :email)
+      end
+    end
+  end
+
+  def from_affiliate?
+    lead_raw.present?
+  end
+
+  def cannot_apply_reasons
+    # Should return an array of symbols
+    if self[:cannot_apply_reasons].kind_of?(Array)
+      self[:cannot_apply_reasons]
+    else
+      self[:cannot_apply_reasons] && self[:cannot_apply_reasons].split(',').map(&:to_sym) || []
+    end
+  end
+
+  def cannot_apply_reasons=(val)
+    # Should store a string, delimited with commas
+    self[:cannot_apply_reasons] = val.kind_of?(Array) ? val.join(',') : val
+  end
+
+  def build_from_personal_offer_code!(promo: nil, code: nil, promotion_id: nil)
+    if promo && code && record = PreapprovedRecord.by_code_and_url(code, promo).first
+      record.claim_for(self.customer)
+      if promotion_id.present? && (promotion = Promotion.where(id: promotion_id).first)
+        error = Promotion::Engine.create_promotion_instance(customer: self.customer, promotion: promotion)
+        # do nothing with this error for now
+      end
+      address_1 = record.address
+      address_2 = ""
+      [:unit_type, :unit_number].each do |column|
+        if !record[column].blank?
+          address_1 = address_1.gsub(/#{record[column]}/i, "")
+          address_2 += " #{record[column]}"
+        end
+      end
+      address_1.strip!
+      address_2.strip!
+      address_2 = nil if address_2.blank?
+      app_hash = {
+        person: {
+          first_name: record.first_name,
+          last_name: record.last_name
+        },
+        customer_address: {
+          address_1: address_1,
+          address_2: address_2,
+          city: record.city,
+          state: record.state,
+          zip: record.zip[0, 5]
+        }
+      }
+      self.partial_application = CustomerApplicationStageEngine.build_empty_page_information_hash.deep_merge(app_hash)
+      self.skip_save_callbacks = true
+      self.save(validate: false)
+    end
+  end
+
+  def payment_method_complete?
+    !self.customer.ongoing_application.payment_method.blank?
+  end
+
+  def bank_information_complete?
+    !self.customer.bank_account.blank?
+  end
+
+  def google_analytics
+    @google_analytics ||= Gabba::Gabba.new(I18n.t('google_analytics_account_id'), I18n.t('corporate_constants.cookie_domain'))
+  end
+
+  def set_decline_referral!(company, clicked=false)
+    company = company.to_s
+    self.decline_referral = {
+      company: company,
+      clicked: clicked
+    }
+    google_analytics.event("CustomerApplication", "Decline", "#{clicked ? 'Clicked' : 'View'}#{company.camelize}", self.uuid, true) if Rails.env.production?
+    self.save
+  end
+
+  def set_customer_consents!(set_to = false)
+    self.customer.electronic_communications_consent = set_to
+    self.customer.save(validate: false)
+    self.partial_application[:customer][:electronic_communications_consent] = set_to
+    self.skip_save_callbacks = true
+    self.save(validate: false)
+  end
+
+  def requested_product
+    return self.initial_requested_product if self.initial_requested_product
+    cd = self.customer.credit_decisions.where('credit_decisions.created_at > ?', self.created_at).order('credit_decisions.created_at').first
+    prod = cd.inputs[:product_type] if cd
+    prod ||= partial_application[:customer_application].try(:[], :product_type) if partial_application
+    prod ||= product_type_waterfall
+  end
+
+  def pay_frequency
+    partial_application.try(:[], :income).try(:[], :pay_frequency)
+  end
+
+  def prefers_document_upload?
+    partial_application.try(:[], :income_verification).try(:[], :prefers_document_upload)
+  end
+
+  def update_user_agent(string)
+    user_agent_log = self.user_agent_logs.first
+    if !user_agent_log || !user_agent_log.same?(string)
+      user_agent_log = self.user_agent_logs.build(raw: string)
+      user_agent_log.build_from_raw
+      self.save(validate: false)
+    end
+  end
+
+  def save_metadata_fields
+    if !self.new_record? && (metadata = partial_application.try(:[], :customer_application_metadata))
+      fields = customer_application_metadata_fields.all
+      metadata.each do |key,val|
+        if item = fields.detect { |i| i.key.to_s == key.to_s }
+          item.val = val
+          item.save! if item.changed?
+        elsif !val.blank?
+          customer_application_metadata_fields.create({:key => key, :val => val})
+        end
+      end
+    end
+
+    true
+  end
+end

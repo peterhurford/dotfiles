@@ -1,0 +1,182 @@
+define('all_variables', 'numeric_cols', 'clarity_variables', 'bad_loans', 'microbilt_variables',
+       function(all_variables, numeric_cols, clarity, bad_loans, microbilt_variables) {
+variable_list <- list(
+  bad_variables = (unique(c(
+      c("ID1", "zip", "L2CD5085", "loan_matured", 
+        "loan_funded", "ApprovedLoanAmount", "ApprovedAPR",
+        "loan_decision_time")
+    , c("product_name", "credit_decision_id", "customer_id", "X",
+        'transunion_credit_report_id', 'transunion_credit_report_id.1',  
+        'transunion_credit_report_id.2', 'transunion_credit_report_id.3',
+        'credit_report_id', 'credit_report_id.1', 'credit_report_id.2', 
+        'credit_report_id.3', 'credit_report_id.4', 'credit_report_id.5', 'credit_report_id.6',  
+        'id', 'id.1','id.2', 'id.3', 'id.4', 'id.5', 'id.6', 'id.7',
+        'created_at', 'created_at.1', 'created_at.2', 'created_at.3', 'created_at.4', 
+        'updated_at', 'updated_at.1', 'updated_at.2', 'updated_at.3', 'updated_at.4',
+        'updated_at', 'created_at.1', 'updated_at.1', 'id', 'id.1', 'state.1', 'ssn', 
+        'decision_timestamp', 'first_name', 'first_name.1', 'first_name.2','last_name', 
+        'last_name.1','last_name.2', 'street', 'street.1','street.2', 'city','city.1', 
+        'address_valid_code', 'ssn_valid_code', 'phone_valid_code', 'ssn_name_match',
+        'ssn_address_match', 'ssn_dob_warning', 'name_address_match', 'name_phone_match', 
+        'phone_address_match', 'deceased_indicator', 'fraud_warning', 'ofac_alert', 
+        'dl_name_match', 'dl_valid_format', 'dldob_match', 'name_work_phone_match', 
+        'dl_verification_code', 'work_phone_valid_code', 'decision', 'type', 'count_nintendobrowser',
+        
+        # date vars
+        "last_inquiry_date", "last_loan_date",  "bad_loan_date",  
+        
+        # discriminant variables
+        'age_reasonableness_standard', "age_at_application", 
+        "income_employment", "income_military", "income_self_employment", "income_retired", "income_other",      
+        'mbb_time_since_app_aba_first_seen', 'mbb_has_application_aba_record', 'mbb_max_app_aba_default_differential',
+        
+        # duplicates
+        'score.1', "count_installment_accounts_3m.1", "count_individual_type_3m.1", "state.y",  
+        "L2CD5515", "L2CN1116", "balance_amount_cc", "balance_amount_ch", 
+        "balance_amount_other", "balance_amount_cc_recent", "balance_amount_ch_recent", 
+        "count_total_rating_recent", "score", "recent_merchants", "G050",
+        
+        # unstable variables
+        "source", "application_hourofday", "loan_purpose", "application_dayofmonth", 
+        "count_chrome", "count_aol", "count_firefox", "count_maxthon", 
+        "count_iemobile", "count_internetexplorer", "count_opera", 
+        "count_netscape", "count_safari", "count_null", "count_other",
+        "email_yahoo", "email_gmail", "email_hotmail", "email_apple", 
+        "email_other", 
+        ## excluding all mbb_ variables ##
+        "mbb_total_accounts", "mbb_max_times_seen", "mbb_total_times_seen", 
+        "mbb_max_default_differential", "mbb_min_default_differential", 
+        "mbb_average_default_differential", "mbb_has_application_aba_record", 
+        "mbb_app_aba_max_times_seen", "mbb_app_aba_total_times_seen", 
+        "mbb_max_app_aba_default_differential", "mbb_min_app_aba_default_differential", 
+        "mbb_average_app_aba_default_differential", "mbb_time_since_most_recent_seen", 
+        "mbb_time_since_app_aba_seen", "mbb_time_since_first_seen", "mbb_time_since_app_aba_first_seen", 
+        #"dda_close_days_30", "dda_close_days_60", "dda_close_days_90", 
+        #"dda_close_days_180", "dda_close_days_365", "dda_close_days_730", 
+        #"dda_close_days_1095"
+        
+        ## in-house microbilt variables ##
+        #"fixed_mbd_score", "days_since_last_inquiry_mb", "mb_identity_score"   # ?? can we keep this??
+        
+        ## WebBank demanded variables ##
+        "has_sallie_mae", "has_deptednelnet", "count_individual_type_3m", "has_cosigner_type"      
+        ## done ##
+    )
+    , c("L2CS1007_A", "L2CS1003_A", # L2C Semi-customized scores
+        "L2CN4013", "L2CD5543", 
+        # "PF07", "PF08", "PF09","PF33","PF34","OF01","OF03","OF20","OF28","OF29",
+        "ATTR01", "ATTR02", "ATTR03", "ATTR04", "ATTR05", "ATTR06",
+        "ATTR07", "ATTR08", "ATTR09", "ATTR10", "ATTR11",
+        "ATTR12", "ATTR13", "ATTR14", "ATTR15", "ATTR16", "ATTR17", "S0Y2", "S002")
+    , clarity$bad_variables
+    , c("clarity_clear_payday_tradeline_product_date", 
+        "clarity_inquiry_date_of_last_activity",
+        "clarity_clear_payday_tradeline_supplier_payday_tradeline_summary_payday_tradeline_last_charge_off",
+        "clarity_clear_payday_tradeline_supplier_payday_tradeline_summary_payday_tradeline_last_collection",
+        "clarity_inquiry_inquiry_received_at",
+        "clarity_inquiry_last_seen_by_account",
+        "clarity_inquiry_last_seen_by_group",
+        "clarity_inquiry_last_seen_by_location")
+  )))
+  , predict_diffs = c("dep_var")
+  
+  , imputed_cols =
+    c("limit_amount_au", "balance_amount_au", "total_credit_limit",
+      "total_available_credit", "total_monthly_obligations", "max_credit_limit",
+      "credit_directional_test", "min_monthly_debt_burden", "mbb_total_accounts",
+      "mbb_max_times_seen", "mbb_total_times_seen", "mbb_max_default_differential",
+      "mbb_min_default_differential", "mbb_average_default_differential",
+      "mbb_app_aba_max_times_seen", "mbb_app_aba_total_times_seen",
+      "mbb_min_app_aba_default_differential", "mbb_average_app_aba_default_differential"
+    )
+  
+  , discretized_columns = 
+    (c("past_due_accounts_recent", "closed_balance_accts_with_pmts",
+      "closed_balance_accts_with_pmts_good", "recently_opened_lines_1m",
+      "recently_opened_lines_2m", "recently_opened_lines_3m", "count_account_fc",
+      "count_account_us_opened_3m", "count_account_other_opened_3m",
+      "count_account_us_recent", "has_cap_one", "has_fst_premier",
+      "has_hsbc_bank", "has_chase", "has_bk_of_amer", "has_creditonebnk",
+      "has_cap_one_recent", "has_sallie_mae_recent", "has_chase_recent",
+      "has_bk_of_amer_recent", "has_springlf_fin_recent", "has_creditonebnk_recent",
+      "has_cap_one_good", "has_sallie_mae_good", "has_chase_good",
+      "has_bk_of_amer_good", "has_springlf_fin_good", "has_creditonebnk_good",
+      "total_collections_1y", "total_collections_unpaid_1y", "total_collections_medical_1y",
+      "total_collections_unpaid_medical_1y", "count_installment_accounts_3m",
+      "count_individual_type_3m", "count_30days_rating", "count_reallybad_rating",
+      "count_30_late", "count_60_late", "recent_60_total", "event_position",
+      "inquiries_24_hrs", "inquiries_7_days", "inquiries_30_days",
+      "inquiry_events_24_hrs", "inquiry_events_7_days", "inquiry_events_30_days",
+      "recent_inquiries", "bad_loans", "bad_loan_merchants", "loans_collections",
+      "loans_written_off", "loans_past_due", "loans_discharged", "days_30",
+      "days_60", "days_90", "days_180", "days_365", "state", "AT05",
+      "FR03", "BI06", "BI07", "BI08", "BI09", "FI05", "FI06", "IN05",
+      "IN06", "MT02", "MT03", "MT29", "PF02", "PF03", "PF05", "PF06",
+      "OF03", "OF29", "ON01", "BC07", "BC08", "PB03", "PB10", "PB11",
+      "PB12", "PB13", "PB14", "RT06", "RT07", "DS02", "DS03", "DS06",
+      "DS07", "DS08", "DS09", "DS10", "DS11", "DS12", "DS13", "DS14",
+      "G016", "G017", "G018", "G019", "G020", "G023", "G024", "G025",
+      "G030", "G057", "G062", "G063", "G068", "G082", "G088", "G089",
+      "G093", "G094", "S014", "S015", "S019", "S020", "clarity_clear_payday_tradeline_inquiry_cluster_payday_tradeline_total_inquiries_payday_tradeline_one_hour_ago",
+      "clarity_clear_payday_tradeline_inquiry_cluster_payday_tradeline_total_inquiry_clusters_payday_tradeline_seven_days_ago",
+      "clarity_clear_payday_tradeline_inquiry_cluster_payday_tradeline_total_inquiry_clusters_payday_tradeline_twentyfour_hours_ago",
+      "clarity_clear_payday_tradeline_supplier_payday_tradeline_summary_payday_tradeline_loans_charged_off",
+      "clarity_clear_payday_tradeline_supplier_payday_tradeline_summary_payday_tradeline_loans_in_collections",
+      "clarity_clear_payday_tradeline_supplier_payday_tradeline_summary_payday_tradeline_online_loan_inquiry_in_the_last_thirty_days",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_cell_phone_crosstab_drivers_license_numbers",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_cell_phone_crosstab_emails",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_cell_phone_crosstab_home_phones",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_cell_phone_crosstab_ssns",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_email_crosstab_cell_phones",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_email_crosstab_drivers_license_numbers",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_email_crosstab_home_phones",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_email_crosstab_ssns",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_home_phone_crosstab_cell_phones",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_home_phone_crosstab_emails",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_home_phone_crosstab_ssns",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_identity_profile_ssn_crosstab_emails",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_fifteen_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_ninety_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_one_hour_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_one_minute_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_seven_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_ten_minutes_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_thirty_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_twentyfour_hours_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_fifteen_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_ninety_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_one_hour_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_one_minute_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_seven_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_ten_minutes_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_thirty_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_cell_phone_twentyfour_hours_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_fifteen_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_ninety_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_seven_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_thirty_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_drivers_license_twentyfour_hours_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_home_phone_fifteen_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_home_phone_ninety_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_home_phone_thirty_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_monthly_income_twentyfour_hours_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_fifteen_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_ninety_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_one_hour_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_seven_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_thirty_days_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_stability_stability_work_phone_twentyfour_hours_ago",
+      "clarity_clear_subprime_idfraud_clear_subprime_idfraud_validation_possible_fraud_type",
+      "clarity_inquiry_housing_status", "clarity_inquiry_pay_frequency",
+      "clarity_inquiry_ssn_distinct_first_last_name_count", "clarity_inquiry_ssn_first_appearance"
+    ))
+  , all_variables = (all_variables)
+  , numeric_cols = intersect((numeric_cols), (all_variables))
+  , bad_loans = bad_loans
+  , bad_clarity_variables = clarity$worst_variables
+    
+) # End variable list
+
+variable_list <- lapply(variable_list, function(x) 
+  if (is.character(x)) setdiff(x, microbilt_variables) else x                        
+)})

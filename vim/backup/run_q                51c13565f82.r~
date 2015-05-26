@@ -1,0 +1,1 @@
+run_query('select * from loans limit 1')

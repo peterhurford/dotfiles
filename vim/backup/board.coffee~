@@ -1,0 +1,10 @@
+'use strict'
+
+angular.module 'threeManChessApp'
+.config ($routeProvider) ->
+  $routeProvider
+  .when '/',
+    templateUrl: 'app/game/board.html'
+    controller: 'BoardCtrl'
+
+

@@ -1,0 +1,161 @@
+options(repos=structure(c(CRAN="http://cran.rstudio.com/")))
+
+if (interactive()){
+  # library(colorout)
+  cat("Loading R profile...\n")
+  tryCatch(qq <<- function() { base::quit(save = 'no') }, error = function(e) NULL)
+  options(continue = '  ')
+  options(stringsAsFactors = FALSE)
+  options('ed.echo' = TRUE)
+  options('ed.show.attributes' = TRUE)
+
+  options(s3mpi.cache = '~/.s3cache')
+
+  library(setwidth)
+  #library(vimcom)
+  library(Ramd)
+  library(devtools)
+  library(productivus)
+  library(director)
+  library(berdie)
+  library(LookR)
+  library(rlist)
+  # setOutputColors256(warn = 213)
+  .Last <- function() {
+    if (!any(commandArgs()=='--no-readline') && interactive()){
+      require(utils)
+      # try(savehistory(Sys.getenv("R_HISTFILE")))
+    }
+  }
+  last <- function(x) { tail(x, n = 1) }
+  print.data.frame <- function(df) {
+     if (nrow(df) > 10) {
+        base::print.data.frame(head(df, 5))
+        cat("----\n")
+        base::print.data.frame(tail(df, 5))
+     } else {
+        base::print.data.frame(df)
+     }
+  }
+  # require(Defaults)
+  #setDefaults(q, save="no")
+  #useDefaults(q)
+  #options(max.print = 1000)
+  makeActiveBinding(".", function() .Last.value, env = globalenv())
+  instmbt <<- function(fn_name = 'install', ...) {
+    if ('mungebits' %in% loadedNamespaces()) {
+      detach('package:syberia')
+      unloadNamespace('syberia')
+    }
+    get(fn_name, envir = as.environment('package:devtools'))('~/dev/mungebitsTransformations', ...)
+    library(syberia)
+  }
+  # devtools overwrites
+  pkg_keys <- list(m = 'mungebits', mt = 'mungebitsTransformations', s = 'syberia',
+                    t = 'tundra', s3 = 's3mpi', r = 'ramd', su = 'statsUtils')
+  devtools_fns <- c('install', 'test', 'document', 'build')
+  lapply(devtools_fns, function(fn_name) {
+    assign(fn_name, function(x = ".", ...) {
+      if ((tmp <- deparse(substitute(x))) %in% names(pkg_keys))
+        x <- pp("~/dev/#{pkg_keys[[tmp]]}")
+      if (x == '~/dev/mungebitsTransformations') instmbt(fn_name, ...)
+      else get(fn_name, envir = as.environment('package:devtools'))(x, ...)
+    }, envir = globalenv())
+  })
+  # s3mpi
+  options(s3mpi.path = 's3://avantminer/tmp/')
+  # syberia
+  options(syberia.root = '~/dev/avant-models')
+  library(s3mpi)
+  library(syberia)
+
+  keymap <- list(
+    A = function() last_run()$after$data,
+    B = function() last_run()$before$data,
+    E = function() last_run(),
+    M = function() A$model_stage$model,
+    S = function() active_runner()
+  )
+  suppressWarnings(lapply(names(keymap), function(key) {
+    eval(parse(text = paste0("rm(", key, ")")), envir = globalenv())
+    makeActiveBinding(key, keymap[[key]], env = globalenv())
+  }))
+
+  options(avant.api_password = 'MTVhZDUxNTJkNzdkMzU5MGI')
+  options(avant.api_url = 'https://www.avantcredit.com/api/9b49bc90e9240eb7d0b70a9615ad5152d77d3590b66b8a5c5867e8c4c5fcb372/credit_model/')
+  options(avant.api_v1_key = 'MTVhZDUxNTJkNzdkMzU5MGI')
+  #options(avant.api_v1_url = 'https://www.avantcredit.com/api/modeling/v1')
+  options(avant.api_v1_url = 'https://www.avantcredit.com/api/modeling/v1')
+  library(avant)
+
+  (function() {
+    require(AWS.tools)
+    require(rjson)
+    require(stringr)
+    path <- 's3://avantminer/tmp/'
+
+    grab_latest_file_in_s3_dir <<- function(.path = path) {
+      paths <- system(paste('s3cmd ls ', .path, '*', sep = ''), intern = TRUE)
+      times <- as.POSIXct(substring(paths, 1, 16))
+      latest <- which(max(times) == times)
+      regex <- paste(str_replace(.path, '\\/', '\\\\/'), '(.+)', sep = '')
+      results <- gregexpr(regex, paths, perl = TRUE)
+      substring(regmatches(paths, results)[[latest[1]]], 1 + nchar(.path))
+    }
+
+    store <<- function(obj, name = NULL, .path = path) {
+      if (is.null(name)) name = deparse(substitute(obj))
+      s3.put(obj, paste(.path, name, sep = ''))
+    }
+
+    read <<- function(name = NULL, .path = path) { 
+      if (is.null(name)) name <- grab_latest_file_in_s3_dir(.path)
+      s3.get(paste(.path, name, sep = ''))
+    }
+
+    path = 's3://avantminer/rubympi/'
+
+    s3_path <- function(path, name) {
+      paste('"', path, name, '"', sep = '')
+    }
+
+    rubystore <<- function(obj, name = NULL) {
+      if (is.null(name)) name = deparse(substitute(obj))
+      x.serialized <- tempfile()
+      write(toJSON(obj), x.serialized)
+      s3.cmd <- paste("s3cmd put", x.serialized, s3_path(path, name))
+      res <- system(s3.cmd, intern = TRUE)
+      unlink(x.serialized)
+      res
+    }
+
+    rubyread <<- function(name = NULL) {
+      if (is.null(name)) name <- grab_latest_file_in_s3_dir(path)
+      x.serialized <- tempfile()
+      s3.cmd <- paste("s3cmd get", s3_path(path, name), x.serialized)
+      res <- system(s3.cmd, intern = TRUE)
+      ans <- fromJSON(paste(readLines(x.serialized), collapse = "\n"))
+      unlink(x.serialized)
+      ans
+    }
+  })()
+
+  darwin_validate <- function(path, pct = 0.8, dep_var = "dep_var") {
+    model <- s3read(pp('#{path}/model'), 's3://avantdarwin/')
+    data  <- s3read(pp('#{path}/data'),  's3://avantdarwin/')
+    data  <- data[-seq_len(pct * nrow(data)), ]
+    write.csv(avant::validation_dataframe(data, model, dep_var = dep_var),
+              pp("~/tmp/#{basename(path)}_validation.csv"), row.names = FALSE)
+  }
+
+
+  # Miscellaneous helper functions
+  clear <- function() system('clear')
+
+  Q <<- parallel:::mcparallel
+
+
+  invisible(NULL)
+} # 
+
+

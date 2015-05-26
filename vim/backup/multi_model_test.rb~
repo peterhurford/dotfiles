@@ -1,0 +1,102 @@
+require 'test_helper'
+
+describe 'Multi Model' do
+
+  [:analytical, :credit_model].each do |pick|
+
+    describe pick.to_s do
+
+      before { TestLocaleHelper.set_us! }
+      after { TestLocaleHelper.reset_locale! }
+
+      let(:switch) {
+        ModelSwitchGenerator.new(pick)
+      }
+
+      let(:check_model) {
+        case pick
+        when :analytical
+          -> (model,promo) {
+            if promo
+              model.must_be_instance_of Modeling::Models::Default::Letter
+              assert (/^(.+)_transunion_promotion$/ =~ promo.name), "cannot get month!"
+              model.month.must_match(/#{$1}/)
+            else
+              model.must_be_instance_of Modeling::Models::Default::EnUs
+            end
+          }
+        when :credit_model
+          -> (model, promo) {
+            model.must_be_instance_of CreditModel::CreditModel
+            model.version.wont_be_nil
+            ds = model.data_sources
+            if promo
+              ds.count.must_equal 1
+              ds.first.must_be_instance_of CreditModel::CreditModelDataSourceTransunion
+            else
+              ds.count.must_be :>, 1
+            end
+          }
+        else
+          raise "Invalid model system!"
+        end
+      }
+
+      let(:stubbing) {
+        if pick == :credit_model
+          Proc.new{ |month|
+            if month
+              fake_model = CreditModel::CreditModel.new
+              fake_model.version = "fake_#{month}_letter"
+              fake_model.transunion = true
+              ret_hash = {"transunion_#{month}".to_sym => fake_model}
+              CreditModel::CreditModel.stubs(:current_letter).returns(ret_hash)
+            else
+              fake_model = CreditModel::CreditModel.new
+              fake_model.version = "fake_default"
+              fake_model.transunion = true
+              fake_model.rails << CreditModel::CreditModelDataSourceRails.new
+              CreditModel::CreditModel.stubs(:current_default).returns(fake_model)
+            end
+          }
+        else
+          Proc.new{}
+        end
+      }
+
+      let(:tu_promotion) {
+        ->(month,code) {
+          Promotion.where(coupon_code: code).first ||
+          FactoryGirl.create(:promotion, "#{month}_transunion_letter".to_sym)
+        }
+      }
+
+      { "April 2014 Transunion letter"  => [:april, 'special50'],
+        "May 2014 Transunion letter"    => [:may, 'care50'],
+        "August 2014 Transunion letter" => [:august, 'good50'], 
+        "September 2014 Transunion letter" => [:september, 'fast'],
+        "US default-response"           => nil
+      }.each do |info, args|
+        it "should pick the right model for #{info} customers" do
+          month, promo_code = args
+          stubbing.call(month)
+          
+          promo = month && promo_code && tu_promotion.(month, promo_code)
+          if promo
+            promotion_instance = FactoryGirl.create(:promotion_instance, promotion: promo)
+          else
+            promotion_instance = FactoryGirl.create(:promotion_instance)
+          end
+
+          mm = MultiModel.new(model_type: 'default',
+                              model_switch: switch,
+                              credit_decision: promotion_instance.promotable.credit_decisions.last,
+                              skip_data_source_checks: true)
+          model = mm.pick
+          check_model.call(model,promo)
+        end
+      end
+
+    end
+  end
+end

@@ -1,0 +1,257 @@
+require 'test_helper'
+
+describe CustomerApplication do
+  let(:affiliates_yaml) { YAML.load_file("etc/affiliates.yml") }
+
+  teardown do
+    # Required due to letter codes being a Class instance variable
+    CustomerApplication.instance_variable_set(:@letter_codes,nil)
+  end
+
+  describe "a new application" do
+
+    before :each do
+     @app = CustomerApplication.new
+    end
+
+    it "should not have a product type" do
+      @app.save(validate: false)
+      refute @app.product_type
+    end
+
+    it "should have a nil product_type when calling product_type_waterfall" do
+      refute @app.product_type_waterfall
+    end
+
+    it "should have a 'installment' product_type for an application with a loan" do
+      @app.loan = Loan.new
+      assert_equal 'installment', @app.product_type_waterfall
+    end
+
+    it "should have a 'credit_line' product_type for an application with a credit line" do
+      @app.credit_line = CreditLine.new
+      assert_equal 'credit_line', @app.product_type_waterfall
+    end
+
+    it "should determine whether the source code is an affiliate or not" do
+      @app.stub(:current_source, affiliates_yaml.first) do
+        assert @app.affiliate_source?, "Not an affiliate source #{@app.current_source} not found in #{affiliates_yaml.inspect}"
+      end
+    end
+
+    it "should not be in progress" do
+      refute @app.in_progress?, "New Applications are not to be considered in progress"
+    end
+
+  end
+
+  describe "For a customer not in an active state" do
+
+    before :each do
+      @customer = FactoryGirl.create(:customer, :complete_information)
+      @app = @customer.ongoing_application
+    end
+
+    it "should have a nil product_type for a customer not in an active state" do
+      address = @customer.address
+      address.state = "FF"
+      address.save
+      refute @app.product_type_waterfall
+    end
+
+    it "should have a nil product_type for a partial information state not in an active state" do
+      @app.save(validate: false)
+      @customer.addresses.delete_all
+      refute @app.product_type_waterfall
+      cae = @app.stage_engine
+      cae.save_data({ customer_address: { state: "FF" } }, "personal")
+      refute cae.customer_application.product_type_waterfall
+    end
+
+
+  end
+
+  describe "For a saved application" do
+
+    before :each do
+      @app = FactoryGirl.create(:customer_application)
+    end
+
+    it "should be considered in progress if it's stage_engine is not completed" do
+      CustomerApplicationStageEngine.any_instance.stubs(:completed?).returns(false)
+      assert @app.in_progress?, "Should be in progress"
+    end
+
+    it "should not be considered in progress if it's stage_engine completed" do
+      CustomerApplicationStageEngine.any_instance.stubs(:completed?).returns(true)
+      refute @app.in_progress?, "A Completed application should not be in progress"
+    end
+
+  end
+
+
+  describe 'When partial_information has a customer password' do
+
+    before :each do
+      @pw = "some_password"
+      @app = CustomerApplication.new
+      @app.partial_application = {}
+      @app.partial_application[:customer] = { password: @pw }
+    end
+
+    it "before save should not have a customer password" do
+      assert_blank @app.customer_password, "customer_password should be blank"
+    end
+
+    it 'on save, without password_confirmation, customer_password should be blank' do
+      @app.save
+      assert_blank @app.customer_password, "customer_password should be blank"
+    end
+
+    it 'on save, with password_confirmation, should save the password as the customer_password attribute' do
+      @app.information[:partial_application][:customer][:password_confirmation] = @pw
+      @app.save
+      assert_equal @pw, @app.customer_password
+    end
+
+  end
+
+
+  describe '.letter_campaign_codes' do
+    let(:promo_codes) { YAML.load_file('etc/promo_code_to_language_customization.yml')['codes'] }
+
+    def expected_codes(campaign)
+      XMLMunger::NestedHash[promo_codes[campaign]].map_values.flatten.map {|pc| pc['code']}
+    end
+
+    it 'should return the default codes' do
+      default_codes = CustomerApplication.letter_campaign_codes
+      refute_nil default_codes
+      refute default_codes.empty?
+      assert_equal expected_codes('transunion'), default_codes
+    end
+
+    it 'should return the transunion codes' do
+      transunion_codes = CustomerApplication.letter_campaign_codes('transunion')
+      refute_nil transunion_codes
+      refute transunion_codes.empty?
+      assert_equal expected_codes('transunion'), transunion_codes
+    end
+
+    it 'should cache requests' do
+      skip # fuck caching - RK
+      letter_campaign_codes     = CustomerApplication.letter_campaign_codes
+      second_request            = CustomerApplication.letter_campaign_codes
+      assert_equal letter_campaign_codes, second_request
+      assert_equal letter_campaign_codes.object_id, second_request.object_id
+    end
+
+    it 'should cache requests by type' do
+      letter_campaign_codes     = CustomerApplication.letter_campaign_codes('generic')
+      tu_letter_campaign_codes  = CustomerApplication.letter_campaign_codes('transunion')
+
+      refute_equal letter_campaign_codes, tu_letter_campaign_codes
+    end
+  end
+
+  # - JASON -
+  # Normally, we should not test against configurable data - meaning a moving target.  Every time it changes, we need to change the test.
+  # However, we changed so much, including the yml format, that I really wanted to ensure we are returning the correct values given the actual yml file.
+  # NOTE: we need to do something re: all the duplication in the yml file
+  #
+  #  DATA UNDER TEST:
+  #  codes:
+  #   generic:
+  #     - code: 'loan50'
+  #       header: 'Apply for your pre-approved loan'
+  #       image: 'https://s3.amazonaws.com/custom-landing-page/us/images/pre-approved-check.png'
+  #     - code: 'offer50'
+  #       header: 'Apply for your pre-approved loan'
+  #       image: 'https://s3.amazonaws.com/custom-landing-page/us/images/pre-approved-check.png'
+  #   transunion:
+  #     - code: 'special50'
+  #     - code: 'get50'
+  #     - code: 'easy50'
+  #   default_values:
+  #     sub_header: 'Welcome to AvantCredit'
+  #     header: 'Apply now for a personal loan'
+  #
+  describe '.custom_landing_page_content' do
+    it 'should return custom content for the given code' do
+      custom_landing_page_content = CustomerApplication.custom_landing_page_content('loan50')
+
+      assert custom_landing_page_content
+      assert_equal 'Apply for your pre-approved loan', custom_landing_page_content['header']
+      assert_equal 'https://s3.amazonaws.com/custom-landing-page/us/images/pre-approved-check.png', custom_landing_page_content['image']
+    end
+
+    it 'should return nil for an invalid landing page code' do
+      refute CustomerApplication.custom_landing_page_content('invalid_code')
+    end
+
+    it 'should fallback to default values when the given code does not set a required field' do
+      custom_landing_page_content = CustomerApplication.custom_landing_page_content('loan50')
+
+      assert custom_landing_page_content
+      assert_equal 'Welcome to AvantCredit', custom_landing_page_content['sub_header']
+    end
+
+    it 'should return code values by type' do
+      custom_landing_page_content = CustomerApplication.custom_landing_page_content('special50', 'transunion')
+
+      assert custom_landing_page_content
+      assert_equal 'Welcome to AvantCredit',        custom_landing_page_content['sub_header']
+      assert_equal 'Apply now for a personal loan', custom_landing_page_content['header']
+    end
+  end
+
+  describe '.valid_campaign_code?' do
+    it 'should return false if code is nil' do
+      refute CustomerApplication.valid_campaign_code?(nil)
+    end
+
+    it 'should return false if the code is not valid' do
+      refute CustomerApplication.valid_campaign_code?('IAMBOGUS')
+    end
+
+    it 'should return true if the code is valid' do
+      random_valid_code = CustomerApplication.letter_campaign_codes.sample
+      assert CustomerApplication.valid_campaign_code?(random_valid_code)
+    end
+
+    it 'should ignore case' do
+      random_valid_code = CustomerApplication.letter_campaign_codes.sample
+      assert CustomerApplication.valid_campaign_code?(random_valid_code.upcase)
+      assert CustomerApplication.valid_campaign_code?(random_valid_code.downcase)
+    end
+  end
+
+  describe '.build_from_personal_offer_code!' do
+    let(:promotion) { FactoryGirl.create(:promotion) }
+    it 'should build from a valid app' do
+      random_valid_code = CustomerApplication.letter_campaign_codes.sample
+      build_from_personal_offer_code!(promo: promotion, code: random_valid_code, promotion_id: promotion.id)
+    end
+  end
+
+  describe '.lead_source' do
+    before :each do
+     @app = CustomerApplication.new
+    end
+
+    it 'should return nil when lead_object is nil' do
+      lead_object = nil
+      @app.lead_object = lead_object
+
+      assert_nil @app.lead_source
+    end
+
+    it 'should return lead_object.source when there is a lead_object' do
+      lead_object = Lead.new
+      lead_object.source = 'quintessential'
+      @app.lead_object = lead_object
+
+      assert_equal "quintessential", @app.lead_source
+    end
+  end
+end

@@ -1,0 +1,36 @@
+, case when i.time_at_job IN ('6_m', '6', '1_to_3_months') then 0
+       when i.time_at_job IN ('6_months_to_1_year', '1_year_to_', '7_months_to_1_year', '1_y') then 1
+       when i.time_at_job IN ('1_year_to_2_years', '2_years', '2 years') then 2
+       when i.time_at_job IN ('2_years_or', '2_years_or_more','more_than_2_years') then 3
+       when i.time_at_job ~ '^[0-9]+$' AND (i.time_at_job::integer >= 60  OR (i.time_at_job::integer >= 5 AND i.time_at_job::integer < 12)) then 5
+       when i.time_at_job ~ '^[0-9]+$' AND i.time_at_job::integer >= 12 then round(i.time_at_job::float / 12)
+       when i.time_at_job ~ '^[0-9]+$' AND i.time_at_job::integer < 5 then i.time_at_job::integer
+       else NULL end as/*keep*/ time_at_job -- 0 is less than 6 months
+, case when i.pay_frequency = 'weekly' then 4 when i.pay_frequency in ('biweekly','twice_monthly','twice_mont','twicemonthly') then 2 when i.pay_frequency = 'monthly' then 1 else 1 end as/*keep*/ paychecks_per_month
+, case when income_type in ('employment','full_time') then 1 else 0 end as/*keep*/ income_employment
+, case when income_type in ('military') then 1 else 0 end as/*keep*/ income_military
+, case when income_type in ('self_employment','self-employed','self_emplo') then 1 else 0 end as/*keep*/ income_self_employment
+, case when income_type in ('retired','retired/benefits','retired_benefits') then 1 else 0 end as/*keep*/ income_retired
+, case when income_type in ('part_time','student','homemaker') then 1 else 0 end as/*keep*/ income_other
+, case when lower(c2.email) like '%@yahoo%' or lower(c2.email) like '@ymail%' then 1 else 0 end as/*keep*/ email_yahoo
+, case when lower(c2.email) like '%@gmail%' then 1 else 0 end as/*keep*/ email_gmail
+, case when lower(c2.email) like '%@hotmail%' then 1 else 0 end as/*keep*/ email_hotmail
+, case when lower(c2.email) like '%@me.com' then 1 else 0 end as/*keep*/ email_apple
+, case when lower(c2.email) not like '%@yahoo%' and lower(c2.email) not like '%@ymail%' and lower(c2.email) not like '%@gmail%'  and lower(c2.email) not like '%@hotmail%' and lower(c2.email) not like '%@me.com' then 1 else 0 end as/*keep*/ email_other
+, (tzcorrect(c2.created_at)::date - pp.date_of_birth)/365::float as/*keep*/ age_at_application
+, extract('hour' from tzcorrect(c2.created_at)) + 1 as/*keep*/ application_hourofday
+, extract('day' from tzcorrect(c2.created_at)) as/*keep*/ application_dayofmonth
+
+, count(distinct case when io.device_browser_type = 'CHROME' then customer_uuid else null end) as count_chrome
+, count(distinct case when io.device_browser_type = 'AOL ' then customer_uuid else null end) as count_Aol
+, count(distinct case when io.device_browser_type = 'FIREFOX' then customer_uuid else null end) as count_Firefox
+, count(distinct case when io.device_browser_type = 'MAXTHON' then customer_uuid else null end) as count_Maxthon
+, count(distinct case when io.device_browser_type = 'IEMOBILE' then customer_uuid else null end) as count_Iemobile
+, count(distinct case when io.device_browser_type = 'INTERNET EXPLORER' then customer_uuid else null end) as count_InternetExplorer
+, count(distinct case when io.device_browser_type = 'OPERA' then customer_uuid else null end) as count_Opera
+, count(distinct case when io.device_browser_type = 'NETSCAPE' then customer_uuid else null end) as count_Netscape
+, count(distinct case when io.device_browser_type = 'SAFARI' then customer_uuid else null end) as count_Safari
+, count(distinct case when io.device_browser_type = 'NINTENDOBROWSER' then customer_uuid else null end) as count_NintendoBrowser
+, count(distinct case when io.id is not null and io.device_browser_type IS NULL then customer_uuid else null end) as count_null
+--, count(distinct case when io.id is null then 1 else null end) as iovation_not_run
+, count(distinct case when io.device_browser_type IS NOT NULL and io.device_browser_type not in ('CHROME','AOL ','FIREFOX','MAXTHON','IEMOBILE','INTERNET EXPLORER','OPERA','NETSCAPE','SAFARI','NINTENDOBROWSER') then customer_uuid else null end) as/*keep*/ count_Other

@@ -1,0 +1,21 @@
+'use strict'
+
+angular.module('threeManChessApp')
+.directive 'board', ->
+  restrict: 'C'
+  link: (scope, $rootScope, element) ->
+
+    scope.canvas.addEventListener 'mousemove', (e) =>
+      scope.onMouseMove(e)
+
+    scope.canvas.addEventListener 'mousedown', (e) =>
+      scope.onMouseDown(e)
+
+    scope.canvas.addEventListener 'mouseup', (e) =>
+      scope.onMouseUp(e)
+
+    scope.initialize = ->
+      scope.drawBoard()
+      scope.placePieces()
+
+    scope.initialize()

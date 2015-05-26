@@ -1,0 +1,179 @@
+require 'test_helper'
+describe Promotion do
+  let(:customer) { FactoryGirl.create(:customer, :with_completed_application) }
+  let(:promotion) { FactoryGirl.create(:promotion) }
+  let(:loan) { FactoryGirl.create(:loan, :current) }
+  let(:credit_line) { FactoryGirl.create(:credit_line, :open, :customer_has_application) }
+
+  describe ".create_promotion_instance" do
+    before { PromotionInstance.delete_all }
+    describe "From Customer" do
+      it 'should transfer promtion to loan' do
+        refute Promotion::Engine.create_promotion_instance(customer: loan.customer, promotion: promotion)
+      end
+
+      it 'should have a status of associated' do
+        Promotion::Engine.create_promotion_instance(customer: loan.customer, promotion: promotion)
+        assert_equal('associated', loan.customer.ongoing_application.promotion_instances.last.status)
+      end
+
+      it 'should transfer promotion to credit line' do
+        refute Promotion::Engine.create_promotion_instance(customer: credit_line.customer, promotion: promotion)
+      end
+    end
+    describe "From Product" do
+      it 'should create an instance' do
+        refute Promotion::Engine.create_promotion_instance(product: loan, promotion: promotion)
+      end
+
+      it 'should be attached to the loan' do
+        Promotion::Engine.create_promotion_instance(product: loan, promotion: promotion)
+        assert(loan.reload.promotion_instances.present?)
+      end
+    end
+  end
+  
+
+  describe '.validate' do  
+    it "should only allow a coupon to be used once" do
+      Promotion::Engine.create_promotion_instance(customer: customer, promotion: promotion)
+      error = Promotion::Engine.validate(customer, customer.ongoing_application, promotion)
+      assert error.blank?
+    end
+    
+    describe 'Enabled/Disabled Promos' do
+      let(:disabled_promo) { FactoryGirl.create(:promotion, :disabled) }
+      it 'should apply enabled promos' do
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, promotion)
+        assert error.blank?
+      end
+
+      it 'should not apply disabled promos' do
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, disabled_promo)
+        refute error.blank?
+      end
+    end
+
+    describe 'Start and End Date' do
+      before do
+        promotion.start_date = Date.new(2013, 7, 4)
+        promotion.end_date = Date.new(2013, 8, 4)
+      end
+
+      it 'should apply a promotion within the start and end date' do
+        pretend_now_is(Date.new(2013, 7, 10)) do
+          error = Promotion::Engine.validate(customer, customer.ongoing_application, promotion)
+          assert error.blank?
+        end
+      end
+
+      it 'should not apply a promotion before the start date' do
+        pretend_now_is(Date.new(2013, 7, 3)) do
+          error = Promotion::Engine.validate(customer, customer.ongoing_application, promotion)
+          refute error.blank?
+        end
+      end
+
+      it 'should not apply a promotion after the end date' do
+        pretend_now_is(Date.new(2013, 8, 5)) do
+          error = Promotion::Engine.validate(customer, customer.ongoing_application, promotion)
+          refute error.blank?
+        end
+      end
+    end
+
+    describe 'Handle previous loan' do
+      let(:req_prev_promotion) { FactoryGirl.create(:promotion, :require_previous_loan) }
+      it 'should validate if there is a previous loan' do
+        paid_loan = FactoryGirl.create(:loan, :paid_off, customer: customer)
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, req_prev_promotion)
+        assert error.blank?
+      end
+
+      it 'should not validate if there is no previous loan' do
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, req_prev_promotion)
+        refute error.blank?
+      end
+    end
+
+    describe 'Handle first loan' do
+      let(:req_first_promotion) { FactoryGirl.create(:promotion, :require_first_loan) }
+
+      it 'should validate if there is a first loan' do
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, req_first_promotion)
+        assert error.blank?
+      end
+      
+      it 'should not validate if there is no first loan' do
+        paid_loan = FactoryGirl.create(:loan, :paid_off, customer: customer)
+        error = Promotion::Engine.validate(customer, customer.ongoing_application, req_first_promotion)
+        refute error.blank?
+      end
+    end
+
+    describe "Uses per Customer" do
+      let(:one_use_promo) { FactoryGirl.create(:promotion, :one_use) }
+      let(:customer2) { FactoryGirl.create(:customer, :with_completed_application) }
+
+      it 'should validate with one use' do
+        refute Promotion::Engine.create_promotion_instance(customer: customer2, promotion: one_use_promo)
+      end
+      
+      it 'should not validate on second use' do
+        refute Promotion::Engine.create_promotion_instance(customer: customer2, promotion: one_use_promo)
+        assert Promotion::Engine.create_promotion_instance(customer: customer2.reload, promotion: one_use_promo)
+      end
+    end
+
+    describe 'Rule Processing Priority' do
+      before do
+        @promo_stop = FactoryGirl.create(:promotion, :stop_rule_processing)
+        @promo_go = FactoryGirl.create(:promotion)
+        @promo_low = FactoryGirl.create(:promotion, :low_priority)
+        @pi_stop = FactoryGirl.create(:promotion_instance, promotion: @promo_stop)
+        @pi_go = FactoryGirl.create(:promotion_instance, promotion: @promo_go)
+        @pi_low = FactoryGirl.create(:promotion_instance, promotion: @promo_low)
+        @customer = @pi_stop.promotable.customer
+      end
+
+      it 'should validate the higher promotion' do
+        error = Promotion::Engine.validate(@customer, @customer.ongoing_application, @promo_stop)
+        assert error.blank?
+      end
+
+      it 'should not validate the promotion after the stop' do
+        @pi_stop.customer_application_uuid = @customer.ongoing_application.uuid
+        @pi_stop.save
+        error = Promotion::Engine.validate(@customer, @customer.ongoing_application, @promo_low)
+        refute error.blank?
+      end
+
+      it 'should validate a lower promotion if there is no stop' do
+        @customer = @pi_go.promotable.customer
+        @pi_go.customer_application_uuid = @customer.ongoing_application.uuid
+        @pi_go.save
+        error = Promotion::Engine.validate(@customer, @customer.ongoing_application, @promo_low)
+        assert error.blank? 
+      end
+    end
+  end
+
+
+  describe '.calculate_discount' do
+    it 'should convert discount amount to money' do
+      assert_equal(50.to_money, Promotion::Engine.calculate_discount(loan, promotion))
+    end
+
+    it 'should calculate discount no higher than payoff' do
+      loan.stub(:payoff_amount, 10.to_money) do
+        assert_equal(10.to_money, Promotion::Engine.calculate_discount(loan, promotion))
+      end
+    end
+
+    it 'should calculate no discount for a paid off loan' do
+      paid_loan = FactoryGirl.create(:loan, :paid_off, customer: customer)
+      assert_equal(0.to_money, Promotion::Engine.calculate_discount(paid_loan, promotion))
+    end
+  end
+
+end

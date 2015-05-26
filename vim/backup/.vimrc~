@@ -1,0 +1,50 @@
+syntax on
+set runtimepath^=~/.vim/bundle/ctrlp.vim                          "ctrlp plugin
+execute pathogen#infect()
+
+set nobackup                                                      "no backup files
+set nowritebackup                                                 "only in case you don't want a backup file while editing
+set noswapfile                                                    "no swap files
+set tabstop=2 shiftwidth=2 expandtab smarttab smartindent         "smart tabbing
+set number                                                        "Line numbers
+set autoread                                                      "Updates vim file when changed from outside
+set magic                                                         "Allows pattern matching with special characters
+filetype plugin indent on                                         "Turn plugins on
+autocmd BufEnter * lcd %:p:h                                      " e . opens in current directory
+
+"make ;; into <Esc> for faster <Esc>
+imap ;; <Esc>
+
+"don't have to press shift to get : (faster)
+nnoremap : ;
+
+"semicolon still works
+nnoremap ; :
+
+"Make CTRL-P plugin wrk on CTRL-Z (faster)
+map <C-Z> <C-P>
+
+" Map , to leader
+let mapleader=","
+
+" ,w toggles wrap
+noremap <Leader>w :set wrap! wrap?<CR>
+
+" ,m saves
+noremap <Leader>m :w<CR>
+
+" ,n toggles relative number
+noremap <Leader>n :exec &number==&relativenumber? "set number!" : "set relativenumber!"<CR>
+
+" ,p toggles paste
+nnoremap <Leader>p :set paste! paste?<CR>
+
+" ,s starts subshell
+nnoremap <Leader>s :sh<CR>
+
+"" Vim R (Start R with ,r and send lines with space)
+map <Leader>r <Plug>RStart 
+vmap <Space> <Plug>RDSendSelection 
+nmap <Space> <Plug>RDSendLine
+let vimrplugin_assign = 0
+

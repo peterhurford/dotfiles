@@ -1,0 +1,117 @@
+'use strict'
+
+angular.module 'threeManChessApp'
+.factory 'Mouse', ($rootScope, Board, Pieces) ->
+  beziers = []
+
+  $rootScope.normalizeX = normalizeX = (x) ->
+    (24*2 - (x - 9)) % 24
+
+  normalizeMoves = (moves) ->
+   [normalizeX(moves[i][0]), moves[i][1]] for i in [0...moves.length]
+
+  cartesianToPolar = (x, y) ->
+    r = Math.sqrt(x*x + y*y)
+    theta = Math.atan(y/x) / (2 * Math.PI) * 360
+    theta += 180 if x < 0
+    theta += 360 if x > 0 and y < 0
+    {r: r, theta: theta}
+
+  getMousePos = (e) ->
+    rect = $rootScope.canvas.getBoundingClientRect()
+    x = e.clientX - rect.left - 300
+    y = e.clientY - rect.top - 300
+    polar_c = cartesianToPolar(x, y)
+    # This magic comes from
+    # line 34 in board.service.coffee (look for 1 / 2 - 1 / 8)
+    x_diff = ((1 / 2 - 1 / 8) * $rootScope.canvas.height) * 1 / 6
+    {
+      x: normalizeX(Math.floor(polar_c.theta / (360 / 24)))
+      y: 5 - Math.floor((polar_c.r - 75) / x_diff)
+    }
+
+  write = (message) ->
+    ctx = $rootScope.ctx
+    ctx.clearRect(0, 0, $rootScope.canvas.width/2, 40)
+    ctx.font = '18pt Calibri'
+    ctx.fillStyle = 'black'
+    ctx.fillText(message, 10, 25)
+
+  getBeziers = (piece) ->
+    if piece instanceof Array
+      [x, y] = piece
+    else if piece && (piece.type == 'queen' or piece.type == 'bishop')
+      [x, y] = [piece.x(), piece.y()]
+    x = normalizeX(x) if x?
+    if piece && y >= 0 && y <= 5
+      if y == 0
+        [(x + 24) % 24]
+      else
+        [(x - y + 24) % 24,(x + y + 24) % 24]
+    else []
+    
+  dropPickedPiece = (mousePos) ->
+    chessboard = $rootScope.chessboard
+    if $rootScope.picked_piece || !chessboard.has_piece_at(mousePos.x, mousePos.y)
+      if $rootScope.picked_piece
+        has_move = false
+        for move in $rootScope.available_moves
+          if move[0] == mousePos.x && move[1] == mousePos.y
+            has_move = true
+            break
+
+        if has_move
+          chessboard.move_piece($rootScope.picked_piece.x(),
+            $rootScope.picked_piece.y(), mousePos.x, mousePos.y)
+        $rootScope.picked_piece = null
+    else
+      $rootScope.picked_piece = chessboard.piece_at(mousePos.x, mousePos.y)
+
+  onMouseMove: onMouseMove = (e) ->
+    mousePos = getMousePos(e)
+    piece = $rootScope.chessboard.piece_at(mousePos.x, mousePos.y)
+    pr = $rootScope?.picked_piece?.type || ''
+    message = "#{mousePos.x}, #{mousePos.y}, #{pr}"
+    write(message)
+    
+    if piece && !$rootScope.picked_piece
+      $rootScope.available_moves = piece.moves()
+    else if !$rootScope.picked_piece
+      $rootScope.available_moves = []
+    
+    beziers = [mousePos.x, mousePos.y] if beziers.length
+    Board.drawBoard(normalizeMoves($rootScope.available_moves), getBeziers($rootScope.picked_piece || piece || beziers))
+    
+    if pr != "" and $rootScope.picked_piece
+      color = $rootScope.picked_piece.color
+      Pieces.placePieces($rootScope.picked_piece.x(), $rootScope.picked_piece.y())
+      crossed_inner_circle =
+        ((24 + (mousePos.x + 24/4 - $rootScope.picked_piece.x())) % 24) > 12
+      upside_down = pr == 'pawn' &&
+        (!$rootScope.picked_piece.towards_center || crossed_inner_circle)
+      Pieces.place(pr, color, mousePos.x, mousePos.y, upside_down)
+    else
+      Pieces.placePieces()
+
+  onMouseDown: (e) ->
+    mousePos = getMousePos(e)
+    beziers = [mousePos.x, mousePos.y]
+    dropPickedPiece(mousePos)
+    onMouseMove(e)
+
+  onMouseOut: (e) ->
+    onMouseMove(e)
+  
+  onMouseUp: (e) ->
+    beziers = []
+    mousePos = getMousePos(e)
+    if $rootScope.picked_piece
+      same_square_as_picked_piece = ($rootScope.picked_piece.x() == mousePos.x &&
+          $rootScope.picked_piece.y() == mousePos.y)
+      # If we are mouseupping in the same square as the picked piece,
+      # bind the piece to the mouse.
+      dropPickedPiece(mousePos) unless same_square_as_picked_piece
+
+    onMouseMove(e)
+    
+

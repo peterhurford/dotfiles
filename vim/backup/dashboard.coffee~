@@ -1,0 +1,134 @@
+#= require view_models/include/buffer
+
+class window.AnalyticsDashboard extends ViewModel.with(BufferedViewModel)
+
+  constructor: ->
+    super
+    @dashboard_info_ajax_path
+    
+    @initialize_observables ['score_nuggets', []], ['variable_stats', []], ['has_running_variables']
+
+    @register_buffer('dashboard-buffer', @proxy(@get_data_with_ajax), 3)
+    
+    # This is a bit hacky, but we want to make the AJAX call so we can display the UI right and populate the buffer
+    # ...so we start on a head one lower than the end of the queue and just move to the end of the queue.
+    @max_head = @current_head
+    @index = @current_head
+    @current_head -= 1
+    @switch_load(1)
+
+    @interval(15*60*1000, => @interval_next())     # Scroll through the queue automatically every fifteen minutes.
+                                                   # This should sync with the resque worker to fetch the latest queue as it's generated.
+
+    # Use left and right arrows to move through the queue
+    $(document.body).keydown (e) =>
+      @load_prev() if e.keyCode == 37
+      @load_next() if e.keyCode == 39
+
+
+  after_render: ->
+    $("#score-nuggets .analytics-dashboard-score-nugget").tooltip(html: true)
+
+  format_score_nuggets: (data) ->
+    data.map (el) =>
+      el.title = @score_nugget_title el
+      el
+
+  score_nugget_title: (el) ->
+    yesno = (x) -> if x then 'Yes' else 'No'
+    """
+    Loan #{el.loan_id} with#{ if el.score_missing then '' else 'out' } missing score<br />
+    Created #{el.created}<br />
+    Has microbilt: #{yesno el.has_microbilt}<br />
+    Has clarity: #{yesno el.has_clarity}<br />
+    Letter customer: #{yesno el.letter_customer}
+    """
+
+  round_to: (n, digits = 3) ->
+    Math.round(n * Math.pow(10, digits)) / Math.pow(10, digits)
+
+  format_stats: (current_stats, historical_stats) ->
+    display_stats = []
+    @has_running_variables(false)
+    if stats and historical_stats
+      @has_running_variables(true)
+      for k, v of historical_stats.means
+        display_stats.push
+          name: if k.length <= 30 then k else k.substr(0,3) + "..." + k.slice(-24)
+          mean: @round_to(current_stats['means'][k])
+          historical_mean: @round_to(historical_stats['means'][k])
+          mean_sd: @round_to(historical_stats['standard_deviations'][k])
+          missing: @round_to(current_stats['missing_percentages'][k])*100 + "%"
+          historical_missing: @round_to(historical_stats['missing_percentages'][k]*100 + "%"
+          bad: Math.abs(current_stats['means'][k] - historical_stats['means'][k]) > 2 * historical_stats['standard_deviations'][k]
+    display_stats
+
+  get_data_with_ajax: (index, callback = ->) ->
+    return false if index <= 0
+    $.get @dashboard_info_ajax_path, { index: index }, (data) => callback(data)
+  
+  process: (data) ->
+    if parseInt(@index) == parseInt(data['_internal']['index_request'])       # Don't load the data if they abort by changing indicies
+      @load_page_data(data)
+      @update_timestamp(data)
+      @update_speedstamp()
+      @reattach_tooltip()
+      @update_menu_links()
+      @buffer_prepopulate('dashboard-buffer', @index)
+
+  load_page_data: (data) ->
+    if @index > @max_head
+      head_from_data = parseInt(data['_internal']['head'])
+      if head_from_data > @max_head       # Distinguish peeks from lookaheads.
+        @max_head = head_from_data
+        @buffer_store('dashboard-buffer', @index, data)   # Store in buffer
+        @current_head = parseInt(@current_head)+1   # Update position in queue
+                                                    # parseInt() is used because @current_head ends up as a string sometimes...
+      else
+        @current_head = parseInt(@max_head)+1
+    else
+      @current_head = parseInt(@current_head)+1 if @index > @current_head
+      @current_head = parseInt(@current_head)-1 if @index < @current_head
+      @buffer_store('dashboard-buffer', @index, data)
+    
+    @score_nuggets(@format_score_nuggets(data['loaninfo']))     # Print page
+    @variable_stats(@format_stats(data['stats'], data['historical_stats']))
+
+
+  load_prev: -> @switch_load(-1)
+  load_next: -> @switch_load(1)
+  interval_next: -> @switch_load(1) if parseInt(@current_head) == parseInt(@max_head)
+
+  show_calculating: ->
+    $('#timestamp').text " Calculating..."
+    $('#speedstamp').text " Calculating..."
+    $('#timestamp').spin lines: 8, length: 4, width: 3, radius: 5, speed: 1.6, top: '20%'
+
+  update_timestamp: (data) ->
+    timestamp = data?['_internal']['generated_at']
+    $('#timestamp').text " #{timestamp}"
+
+  update_speedstamp: ->
+    @end = new Date().getTime()
+    $('#speedstamp').text " #{(@end - @start)/1000}s"
+
+  reattach_tooltip: -> $("[rel='tooltip']").tooltip html: true
+
+  update_menu_links: ->
+    $('#prev').hide() if @current_head == 1
+    $('#prev').show() if @current_head == 2
+
+
+  # Move through the queue.  Dir is a direction: -1 (moving left into the past) or 1 (moving right into the future)
+  switch_load: (dir) ->
+    if (@current_head > 1 and dir == -1) or dir == 1                  # Keep the queue in bounds (don't go lower than the beginning)
+      @start = new Date().getTime()                                   # Start a timer to time the AJAX call
+      @show_calculating()                                             # Set the page to show we're calculating
+      
+      # Get the data from either the buffer, the queue, or generate it, depending on situation
+      @index = @current_head + dir
+      @buffer('dashboard-buffer', @index, @proxy (data) => @process(data))
+
+
+  load_prev: -> @switch_load(-1)
+  load_next: -> @switch_load(1)

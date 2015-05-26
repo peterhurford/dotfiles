@@ -1,0 +1,322 @@
+# NOTE: Use https:// for gem sources, please.
+
+source 'https://rubygems.org'
+
+ruby '2.0.0'
+
+gem 'rails', '3.2.18'
+gem 'rake'
+
+# elasticsearch stuff
+gem 'elasticsearch'
+gem 'patron'
+gem 'oj'
+
+# web
+gem 'jquery-rails', '~> 2.1.4'
+gem 'acts_as_tree'
+gem 'erubis'
+gem 'formtastic'
+gem 'attribute_normalizer'
+gem 'dynamic_form'
+gem 'activerecord-import'
+gem 'will_paginate'
+gem 'haml'
+gem 'rdiscount'
+gem 'simple_form'
+gem 'nokogiri'
+gem 'canonical-rails'
+gem 'geocoder'
+gem 'faraday'
+gem "savon", "~> 2.3"
+gem 'grape', git: 'https://github.com/intridea/grape.git' # 0.7.1
+gem 'secure_headers'
+
+# biz logic
+gem 'workflow', '~> 0.8.7'
+gem 'business_time', '0.6.1'
+gem 'holidays'
+gem 'money-rails'
+gem 'uuidtools'
+
+gem 'halberd', git: 'https://ad322f9e1bce4ed967459068bbc980c2d83d4866:x-oauth-basic@github.com/avantcredit/halberd', branch: 'savon2'
+gem 'finance', git: 'https://github.com/avantcredit/finance.git'
+gem 'ach', git: 'https://github.com/avantcredit/ach.git', branch: 'upgrade-parser'
+
+gem 'stripe', require: false
+
+# Server
+gem 'unicorn'
+gem 'unicorn-worker-killer'
+
+# auth
+gem 'devise', '~> 2.2'
+gem 'omniauth'
+gem 'omniauth-facebook'
+gem 'oauth2'
+gem 'gibberish'
+
+# encryption
+# although attr_encryptor is considered 'outdated', and a really hard to diagnose bug was found in it
+# (In models, do not define an encrypted attribute before a store!) we are, atm, tied to using it b/c
+# updating to latest 'attr_encrypted' gem breaks all our current encryption
+gem 'attr_encryptor'
+
+gem 'rolify', '~> 3.2.0'
+gem 'cancancan'
+
+# Background Processing
+gem 'rack-cors', require: 'rack/cors'
+gem 'rack-ssl', git: 'https://github.com/avantcredit/rack-ssl.git'
+gem 'rack-rewrite'
+
+gem 'resque', require: 'resque/server'
+gem 'resque-status'
+gem 'resque_mailer'
+gem 'resque-scheduler', require: 'resque_scheduler'
+gem 'resque_safe', "~> 0.0.8"
+gem 'devise-async'
+
+gem 'honeybadger'
+gem 'resque-honeybadger'
+gem 'engineyard'
+gem 'pdfkit'
+gem 'rjb'
+gem 'pdf-merger'
+gem 'postalmethods', :git => 'https://github.com/avantcredit/postalmethods.git'
+gem 'soap4r-ruby1.9', :git => 'https://github.com/avantcredit/soap4r-noeticpenguin.git'
+gem 'pdf-reader'
+
+# storage
+gem 'aws-sdk',   '~> 1.3.4'
+gem 's3mpi', '~> 0.0.3'
+gem 'paperclip', '~> 4.1'
+gem 'dalli'
+gem 'paper_trail'
+gem 'redis'
+gem 'redis-rails'
+
+# views
+gem 'draper'
+gem 'hamlbars', '~> 2.1'
+
+# Data
+gem 'oculus', "0.9.12", git: "https://github.com/avantcredit/oculus.git", require: false
+gem 'surus', '~> 0.4.2'
+
+# Net
+gem 'hipchat'
+gem 'typhoeus', '~> 0.5.3'
+gem 'rest-client'
+gem 'ethon', '0.5.11'
+gem 'net-sftp'
+gem 'net-ssh-gateway'
+
+# buzzwords
+gem 'bson_ext'
+
+# mobile
+gem 'mobylette'
+gem 'jquery_mobile_rails'
+
+#utility
+gem 'pg_array_parser'
+gem 'deep_cloneable', '~> 1.5.2'
+gem 'rubyzip', '~> 1.0.0'
+gem 'zip-zip'
+gem 'ruby-gmail', git: 'https://github.com/dcparker/ruby-gmail.git', branch: 'master'
+gem 'mail', "~> 2.5.4"
+gem 'addressable'
+gem "numbers_and_words", "~> 0.10.0"
+gem 'time_difference'
+gem 'chronic'
+gem 'recursive-open-struct'
+gem 'pusher'
+gem 'gabba'
+gem 'tzip'
+gem "damerau-levenshtein", "~> 1.0.3"
+gem "parallel"
+gem 'useragent'
+gem 'phony'
+
+# Angular
+gem 'ng-rails-csrf'
+
+# Events
+gem 'stathat'
+gem 'librato-metrics'
+
+# credit model
+gem 'xmlmunger', '~> 0.0.5', github: 'robertzk/xmlmunger', branch: 'master'
+
+# Services
+gem 'twilio-ruby', '~> 3.11'
+gem 'neography'
+
+group :development do
+  gem 'thin'
+  gem 'sitemap_generator'
+
+  # RailsPanel - chrome extension analytics - http://goo.gl/pmmzN2
+  gem 'meta_request'
+
+  gem 'railroady'
+
+  gem 'better_errors'
+
+  #These are for Linux
+  gem 'rb-inotify', require: false
+  gem 'libnotify', require: false
+
+  gem 'guard'
+  gem 'guard-minitest', '~> 2.0'
+  gem 'guard-livereload'
+  gem 'guard-bundler'
+
+  gem 'rack-livereload', require: false
+
+  gem 'listen', '~> 2.2'
+
+  gem 'minitest-growl'
+  gem 'terminal-notifier-guard'
+
+  gem 'heroku', '~> 3.0' # Used in bin/deploy, ensure same cli version
+
+end
+
+group :development, :test do
+  # Debugging tools
+  gem 'awesome_print',        require: false
+  gem 'pry-plus',   require: false, git: 'https://github.com/avantcredit/pry-plus.git'
+  gem 'pry-rails',  require: false
+  gem 'pry-rescue', '~> 1.4.1', require: false
+
+  gem 'diffy'
+
+  gem 'sass'
+  gem 'quiet_assets'
+  gem 'wirble'
+  gem 'watchr'
+  gem 'binding_of_caller', require: false
+  gem 'mail_safe', require: false
+  #gem 'minitest-rails-capybara', '~> 2.1.1'
+
+  # Test reporting tools
+  gem 'ci_reporter'
+
+  # Documentation
+  gem 'yard'
+
+  # Dev environment setup
+  gem 'foreman'
+
+  # Test factories and fake data
+  gem 'machinist', require: false
+  gem 'faker', require: false
+
+  #Lets get some faster test by cheating
+  gem 'spring', '~> 1.1.2'
+
+  # Local parallel tests
+  gem 'parallel_tests'
+
+  # Remote parallel tests on CI server
+  gem 'tddium', '~> 1.20.0'
+
+  # Useful for testing XML over Nokigiri
+  gem 'xml-simple'
+
+  # JS testing
+  gem 'teaspoon'
+  gem "phantomjs", ">= 1.8.1.1"
+end
+
+gem 'time-warp',       git: 'https://github.com/avantcredit/time-warp.git'
+
+group :test do
+  # Code coverage
+  gem "codeclimate-test-reporter", group: :test, require: nil
+  gem 'simplecov', require: false
+
+  # Test output formatter
+  gem 'turn', require: false
+
+  # Profile
+  gem 'ruby-prof'
+
+  # UI testing
+  gem 'capybara', '~> 2.4.1'
+  gem 'capybara-webkit', '~> 1.3'
+  gem 'selenium-webdriver', '~> 2.42.0'
+  gem 'database_cleaner'
+  gem 'site_prism'
+
+  gem 'factory_girl_rails', '~> 4.0'
+
+  # Resque testing
+  gem 'resque_unit'
+
+  # Freeze time: Date.today, etc
+  # gem 'time-warp',       git: 'https://github.com/avantcredit/time-warp.git'
+
+  # Stub/mock internals
+  gem 'mocha', require: false
+
+  # Stub external requests
+  gem 'vcr', '~> 2.8.0'
+  gem 'webmock', '~> 1.11.0' #Lock for VCR
+  gem 'fakeredis', require: false
+
+  # In-memory testing
+  gem 'sqlite3'
+  gem 'memory_test_fix', git: "https://github.com/Blue-Dog-Archolite/memory_test_fix"
+
+  # Run tests by line number
+  gem 'm'
+
+  # Enables tests using spring and guard
+  gem 'spring-commands-testunit'
+
+  # Check against gems for security
+  gem 'bundler-audit'
+
+  gem 'minitest-rails'
+end
+
+# Gems used only for assets and not required
+# in production environments by default.
+group :assets do
+  gem 'sass-rails',   '~> 3.2.3'
+  gem "bootstrap-sass", "= 3.1.1.0"
+  gem "font-awesome-rails"
+  gem "sass_rails_patch", "~> 0.0.1"
+  gem 'compass-rails'
+
+  gem 'sprockets-sass'
+  gem 'sprockets-rails'
+  gem 'coffee-rails', '~> 3.2.1'
+  gem 'uglifier', '>= 1.0.3'
+
+  gem 'sprockets', '~> 2.2'
+  gem 'asset_sync', git: "https://github.com/avantcredit/asset_sync.git"
+  gem 'turbo-sprockets-rails3'
+  gem 'sprockets-derailleur', git: "https://github.com/avantcredit/sprockets-derailleur", require: false
+  gem 'handlebars_assets'
+end
+
+group :production, :development do
+  gem 'wkhtmltopdf-heroku', git: 'https://github.com/avantcredit/wkhtmltopdf-heroku.git'
+  gem 'pg', '0.17.1'
+end
+
+group :production do
+  gem 'memcachier'
+  gem 'curb'
+
+  gem 'ey_config'
+
+  gem 'newrelic-grape'
+end
+
+# This gem should always be last, in order to instrument gems initialized above it.
+gem 'newrelic_rpm', '~>3.7'

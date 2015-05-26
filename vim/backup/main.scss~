@@ -1,0 +1,64 @@
+.analytics-dashboard-container {
+  padding: 1em;
+  width: 95%;
+  font-family: verdana;
+  font-size: 1.5em;
+
+  .analytics-dashboard-view {
+    background-color: #444;
+    color: #eee;
+
+    .analytics-dashboard-view-header {
+      padding: 1em 3em;
+    }
+
+    .analytics-dashboard-subview {
+      background-color: #eee;
+      margin-top: 2px #999;
+      padding: 2em;
+      color: #333;
+
+      #stats {
+        font-size: 50%;
+        td, th { padding: 0 10px; }
+        tr {
+          &.bad {
+            background-color: #f66 !important;
+            text-color: #ffffff;
+          }
+        }
+      }
+    }
+  }
+  .clear-top { clear: both; }
+
+  .analytics-dashboard-score-nugget {
+     opacity: 0.4;
+     width: 1em;
+     height: 1em;
+     float: left;
+     margin: 0.25em;
+     font-size: 1em;
+
+     &.good { background-color: #6f6 !important; }
+     &.bad { background-color: #f66 !important; }
+     &.good:hover, &.bad:hover { opacity: 1}
+  }
+
+  .analytics-menu {
+    background-color: #bbb;
+    font-size: 0.7em;
+    padding: 1em 2em;
+    height: 3.5em;
+
+    #timestamp, #speedstamp, a { display: inline; }
+    a:hover { cursor: pointer; cursor: hand; }
+
+    .left { float: left; }
+    .right { float: right; }
+  }
+}
+
+.tooltip {
+  font-size: 0.5em;
+}

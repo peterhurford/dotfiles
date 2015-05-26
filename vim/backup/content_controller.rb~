@@ -1,0 +1,260 @@
+class ContentController < FrontendController
+  before_filter :capture_referrer, :save_ppc_info, :save_affiliate_info
+  before_filter :establish_index_logic, only: [:index, :custom_landing_page, :tv2]
+  before_filter :set_rates_and_terms_title, only: :rates_terms
+
+  layout 'application_v3'
+
+  # :index, :faq, :terms_of_use, :contact, :privacy_notice, :testimonials
+  # TODO - REFACTOR:
+  # So that we can cache entire actions we need to get logic out of...
+  #   index:
+  #     -- "shared/v3/header"
+  #     -- current_customer_in_progress? -> offload to angular?
+  #   faq:
+  #     -- "shared/v3/header"
+  #   terms_of_use:
+  #     -- US is cacheable, but...
+  #     --'terms_of_use_uk' uses '/shared/top_nav' => lots of session_logic
+  #   contact:
+  #     -- "shared/v3/header"
+  #   privacy_notice:
+  #     -- "shared/v3/header"
+  #     -- "shared/v3/sub-headers/privacy-notice" => link_to_unless_current
+  #   spam_warning:
+  #     --'spam_warning_uk' uses '/shared/top_nav' => lots of session_logic
+  #   testimonials:
+  #     -- 'shared/v3/header'
+  #
+  #
+  # Partials that have been cached:
+  # 'shared/v3/header_content/content/index'
+  # 'shared/v3/footer-features'
+  # 'shared/v3/modals/how-credit-system-works-video'
+  # 'shared/privacy_notice'
+  # 'shared/v3/sidebar/security'
+  # 'shared/v3/sidebar/support'
+  # 'shared/v3/sidebar/review-display'
+  #
+  # Parts of:
+  # 'content/en-GB/declined'
+  caches_action :trap
+
+  # FIXME Determine why the selected state is not defaulting correctly
+  caches_action :rates_terms, expires_in: 1.hour, cache_path: (proc do
+                  path = 'rates_terms'
+                  path += params['state'] if params['state']
+                  path
+                end)
+
+  def index
+    @teams = @@teams ||= YAML.load_file("etc/teams.yml")
+  end
+
+  def contact; end
+
+  def personal_loans_qa
+    @seo['title'] = "Personal Loans with Bad Credit | Online Loans - AvantCredit"
+    @seo['description'] = "Learn about the benefits of personal loans for those with bad credit, how you can build credit with a personal loan, and more!  Apply for a Personal Loan from Avant Credit and get an instant decision and next day funding!"
+  end
+
+  def debt_consolidation_benefits
+    @seo['title'] = "What are the benefits of debt consolidation?  | AvantCredit"
+    @seo['description'] = "Read about the benefits of debt consolidation using a personal loan.  Apply for a Personal loan from Avant Credit and get an instant decision and next day funding!"
+  end
+
+  def what_is_an_unsecured_loan
+    @seo['title'] = "What is an unsecured Loan? | Personal Loans - AvantCredit"
+    @seo['description'] = "Learn about unsecured loans, installment loans, and personal loans from Avant Credit.  Apply for a Personal Loan from Avant Credit and get an instant decision and next day funding!"
+  end
+
+  def what_is_an_installment_loan
+    @seo['title'] = "What is an Installment Loan? | Personal Loans - AvantCredit"
+    @seo['description'] = "Learn about installment loans and personal loans from Avant Credit.  Apply for a Personal Loan from Avant Credit and get an instant decision and next day funding!"
+  end
+
+  def debt_consolidation_benefits
+    @seo['title'] = "The 3 Benefits of Debt Consolidation"
+    @seo['description'] = "The top 3 benefits of debt consolidation and how it can work for you."
+  end
+
+  def faq
+    @seo['title']    = "Frequently Asked Questions | #{I18n.t('company_name')}"
+    @seo['keywords'] = ['faq', 'frequently asked questions']
+  end
+
+  def privacy
+    return render :action => "privacy_notice_uk", :layout => "application"  if I18n.locale == :"en-GB"
+  end
+
+  def privacy_notice
+    return render :action => "privacy_notice_uk", :layout => "application"  if I18n.locale == :"en-GB"
+  end
+
+  def rates_terms
+    if (params[:state] &&= params[:state].titleize)
+      @state = Address.state_names.invert[params[:state]]
+      @seo['title'] = "#{params['state']} Loan Rates and Terms | #{I18n.t('company_name')}"
+    else
+      @seo['title'] = "Loan Rates and Terms | #{I18n.t('company_name')}"
+    end
+    @seo['keywords'] = ['terms of use']
+
+    # TODO point to standard_cache_expiry_time
+    if Rails.env.production?
+      @rates_data = Rails.cache.fetch(['v4', 'rates-terms-data'], expires_in: 1.hour) { RatesTermsPageEngine.build.to_json }
+    else
+      @rates_data = RatesTermsPageEngine.build.to_json
+    end
+  end
+
+  def spam_warning_uk
+    return render action: "spam_warning_uk", layout: "application"          if I18n.locale == :"en-GB"
+  end
+
+  def terms_of_use
+    return render :action => "terms_of_use_uk", :layout => "application"    if I18n.locale == :"en-GB"
+  end
+
+  def testimonials; end
+
+  def trap
+    render :text => "OK"
+  end
+
+  def custom_landing_page
+    @customer = current_or_guest_customer
+    @custom_content = CustomerApplication.custom_landing_page_content(params[:landing_keyword], "generic")
+
+    unless @custom_content
+      @custom_content = CustomerApplication.custom_landing_page_content(params[:landing_keyword], "personal_offer_code")
+      render :template => "content/preapproved_landing_page" if @custom_content
+    end
+
+    return redirect_to(root_path) unless @custom_content
+  end
+
+  def facebook_landing; end
+
+  def creditkarma2; end
+
+  def google_ppc2; end
+
+  def tv2; end
+
+  def personal_offer_code
+    customer = current_or_guest_customer
+    app = customer.ongoing_application
+    unless app.build_from_personal_offer_code!(promo: params[:promo], code: params[:code], promotion_id: params[:promotion_id])
+      return redirect_to "/#{params[:promo]}?promo_code_error=#{params[:code]}"
+    end
+    return redirect_to apply_path
+  end
+
+  def privacy_notice_ca
+    return render :action => "privacy_notice_uk", :layout => "application"  if I18n.locale == :"en-GB"
+  end
+
+  def terms_of_use
+    return render action: "terms_of_use_uk", layout: "application" if I18n.locale == :"en-GB"
+  end
+
+  def spam_warning_uk
+    return render action: "spam_warning_uk", layout: "application" if I18n.locale == :"en-GB"
+  end
+
+  def declined
+    return redirect_to apply_path
+  end
+
+  def letter_landing_page; end
+
+  def credit_line_info
+    session[:display_cl] = true
+    session[:logo_cl] = true
+
+    if params[:landing_keyword]
+      cookies[:landing_keyword] ||= { value: params[:landing_keyword], expires_at: 30.days.from_now }
+    end
+
+    if params["SubID"]
+      cookies[:sub_id] = { value: params["SubID"], expires_at: 30.days.from_now }
+    end
+
+    if params
+      cookies[:params] = { value: params, expires_at: 30.days.from_now }
+      cookies[:request_url] = { value: request.url, expires_at: 30.days.from_now }
+    end
+  end
+
+  def self.press_releases
+    @press_releases ||= Dir[Rails.root + 'app/views/content/press_releases/*'].map do |f|
+      f.split('/').last.match(/_(.*)\.html/)[1]
+    end
+  end
+
+  def press_release
+    try = params[:release] && params[:release].gsub(/(&.*|\?.*)/,'')
+    if try && release = self.class.press_releases.find { |r| try =~ /#{r}/ }
+      @release = release
+    else
+      not_found
+    end
+  end
+
+  def jobs
+    return redirect_to about_us_path unless locale_US?
+  end
+
+  protected
+
+    def capture_referrer
+      session[:referrer] ||= request.referrer
+    end
+
+    def establish_index_logic
+      session[:state] = params[:state] if Rails.env.development? && params[:state]
+
+      if session[:state].nil?
+        begin
+          Timeout.timeout(1) do
+            session[:state] ||= request.location.state_code
+            session[:display_cl] = StateLogic.active(product_type: :credit_line).keys.include?(session[:state])
+            session[:country_code] ||= request.location.country
+          end
+        rescue => err
+        end
+      end
+
+
+
+      session[:display_cl] ||= params[:display_cl]
+      session[:logo_cl] = false
+
+      if params[:landing_keyword]
+        cookies[:landing_keyword] ||= { value: params[:landing_keyword], expires_at: 30.days.from_now }
+      end
+
+      if params["SubID"]
+        cookies[:sub_id] = { value: params["SubID"], expires_at: 30.days.from_now }
+      end
+
+      if params
+        cookies[:params] = { value: params, expires_at: 30.days.from_now }
+        cookies[:request_url] = { value: request.url, expires_at: 30.days.from_now }
+      end
+    end
+
+    def not_from_landing_keyword?
+      request.fullpath.casecmp('/landing') <= 0
+    end
+
+    def set_rates_and_terms_title
+      if params['state']
+        state_logic = StateLogic.dispatch(state: params['state'].upcase).new
+        @seo['title'] = "#{state_logic && state_logic.state_name} Loan Rates and Terms | #{I18n.t('company_name')}"
+      else
+        @seo['title'] = "Loan Rates and Terms | #{I18n.t('company_name')}"
+      end
+    end
+end

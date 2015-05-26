@@ -1,0 +1,2 @@
+.container.top-buffer
+  canvas.threechessboard(width = '600', height = '600')

@@ -1,0 +1,240 @@
+# Colors
+RED="\[\033[0;31m\]"
+YELLOW="\[\033[0;33m\]"
+GREEN="\[\033[0;32m\]"
+__git_ps1 () 
+{ 
+    local b="$(git symbolic-ref HEAD 2>/dev/null)";
+    if [ -n "$b" ]; then
+        printf " (%s)" "${b##refs/heads/}";
+    fi
+}
+PS1="$RED\w$YELLOW \$(__git_ps1)$GREEN\$ "
+
+
+# Flags
+export ARCHFLAGS="-arch x86_64"
+export RAILS_ENV=development
+export EDITOR='vim'
+export R_HISTFILE=~/.Rhistory
+set -o vi
+
+
+#Paths (Not sharable)
+export PG_BIN="/Applications/Postgres.app/Contents/Versions/9.3/bin"
+export PATH="/Users/peterhurford/bin:/usr/local/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.3/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$HOME/.tmuxifier/bin"
+export PATH="/usr/local/heroku/bin:$PATH" # Heroku Toolbelt
+export DOCKER_HOST=tcp://localhost:4243
+export AWS_ELB_HOME=/usr/local/ElasticLoadBalancing
+export AWS_CREDENTIAL_FILE=/usr/local/ElasticLoadBalancing/credentials-aws-elb
+export AWS_ACCESS_KEY_ID=AKIAJPW2TNI5QZTPLYTA
+export AWS_SECRET_ACCESS_KEY=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
+
+
+### ALIASES
+
+# Tmux and Tmuxifier Aliases
+alias t="tmux"
+alias mean_dev="tmuxifier load-session mean"
+alias vimdow="tmuxifier load-session fullvim"
+other_vim() {
+  cd ~/Programming/personal/other
+  vim .
+}
+
+# Moving Aliases
+go() {                                # Cd and ls in one command (like a text adventure!)
+  cd "$@"
+  ls
+}
+mkdirgo() {
+  mkdir "$@"
+  cd "$@"
+}
+up(){                                 # Go up X directories (default 1)
+  local d=""
+  limit=$1
+  for ((i=1 ; i <= limit ; i++))
+    do
+      d=$d/..
+    done
+  d=$(echo $d | sed 's/^\///')
+  if [ -z "$d" ]; then
+    d=..
+  fi
+  go $d
+}
+alias gop="go ~/Programming"
+alias go_personal="go ~/Programming/personal"
+alias gother="go ~/Programming/personal/other"
+findf() {
+  if [ -n "$2" ]; then
+    ls -R $2 | grep $1
+  else
+    ls -R . | grep $1
+  fi
+}
+alias findl="grep -r"
+find_port() {
+  lsof -i tcp:$1
+}
+alias show_files="defaults write com.apple.finder AppleShowAllFiles YES"
+alias hide_files="defaults write com.apple.finder AppleShowAllFiles NO"
+alias x="exit"
+alias v="vim"
+alias vv="vim ."
+n() {
+  touch "$1"
+  vim "$1"
+}
+
+# Extract Alias
+extract () {
+    if [ -f $1 ] ; then
+       case $1 in
+           *.tar.bz2)   tar xvjf $1    ;;
+           *.tar.gz)    tar xvzf $1    ;;
+           *.bz2)       bunzip2 $1     ;;
+           *.rar)       unrar x $1       ;;
+           *.gz)        gunzip $1      ;;
+           *.tar)       tar xvf $1     ;;
+           *.tbz2)      tar xvjf $1    ;;
+           *.tgz)       tar xvzf $1    ;;
+           *.zip)       unzip $1       ;;
+           *.Z)         uncompress $1  ;;
+           *.7z)        7z x $1        ;;
+           *)           echo "don't know how to extract '$1'..." ;;
+       esac
+   else
+       echo "'$1' is not a valid file!"
+   fi
+ }
+
+# Git Aliases
+pull_current_git_branch() {
+  git pull origin `git rev-parse --abbrev-ref HEAD`
+}
+push_current_git_branch() {
+  git push origin `git rev-parse --abbrev-ref HEAD`
+}
+alias pull="pull_current_git_branch"
+alias push="push_current_git_branch"
+alias s="git status"
+alias co="git checkout "
+alias cob="git checkout -b "
+cop() {
+  git checkout "$1"
+  pull
+}
+cof() {
+  git fetch
+  git checkout "$1"
+}
+copf() {
+  git checkout "$1"
+  pull
+  bundle install
+  bundle exec rake db:migrate
+}
+copff() {
+  git fetch
+  copf
+}
+full_pull() {
+  pull
+  bundle install
+  bundle exec rake db:migrate
+}
+backmerge_master() {
+  curr_branch=`git rev-parse --abbrev-ref HEAD`
+  git checkout master
+  pull
+  bundle install
+  bundle exec rake db:migrate
+  git stash
+  git checkout $curr_branch
+  git merge origin/master
+}
+alias git_reset="git reset --hard"
+dif() {
+  git diff
+  git status
+}
+unset -f send
+send() {
+  pull
+  git add . --all
+  git commit -a -m "$1"
+  push
+}
+prune_branch() {
+  git branch -d "$1"
+  git push origin --delete "$1"
+}
+git_amend() {
+  git add .
+  git commit --amend -m "$1"
+  push
+}
+clone() {
+  git clone git@github.com:$1/$2.git
+  go $2
+}
+
+# Rails Aliases
+alias mig="bundle exec rake db:migrate"
+alias rtest='bundle exec ruby -I"lib:test"'
+alias rc="bundle exec rails console"
+alias rs="rails server"
+
+# MEAN Aliases
+alias ni="npm install -g "
+alias mds="monogod"
+alias md="mongo"
+alias gs="grunt server"
+
+# Avant Aliases (Not Sharable)
+alias go_av="go ~/Programming/avant"
+alias go_avb="go ~/Programming/avant/avant-basic"
+alias go_avm="go ~/Programming/avant/avant-models"
+alias pguard="PRY_WANTED=1 guard"
+av_dev() {
+  tmuxifier load-session av-session
+  tmux
+}
+avm_vim() {
+  go_avm
+  vim .
+}
+av_vim() {
+  go_avb
+  vim .
+}
+alias find_redis="lsof -i tcp:6379"
+av_start() {
+  cd ~/Programming/avant/avant-basic
+  bin/start_development
+}
+av_c() {
+  cd ~/Programming/avant/avant-basic
+  rc
+}
+
+# Other Aliases
+alias rebash="source $HOME/.bash_profile"
+alias r="R --no-save --no-restore-data --quiet"
+
+## RANDO
+
+# Solve RVM is not a Function Error  # http://stackoverflow.com/questions/9752779/rvm-is-not-a-function-error
+if test -f ~/.rvm/scripts/rvm; then
+      [ "$(type -t rvm)" = "function" ] || source ~/.rvm/scripts/rvm
+fi
+
+# Load RVM into a shell session *as a function*
+[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"
+
+
+## STARTUP
+eval "$(tmuxifier init -)"  # Run tmuxifier
+tmux                        # Run tmux

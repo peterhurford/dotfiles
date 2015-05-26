@@ -1,0 +1,1446 @@
+class Loan < ActiveRecord::Base
+  OUTSTANDING_STATUSES = %w(in_default current late)
+
+  include SumAccounts, InterestCalculations, ProductTypes, LoansAndCreditLines, UUIDHelper
+  include Bronto::Observer
+
+  # General to all products
+  include Product::Introspection
+  include Product::Ownership
+  include Product::PresenceNotification
+  include Product::OpsProcessing
+  include Product::Scopes
+  include Product::BlindsProcessing
+  include Product::OverseerProcessing
+  include Product::ContractLogic
+  include Product::CollectionProcessing
+  include Product::CommonWorkflow
+  include Product::WorkItemProcessing
+  include Product::LateFees
+  include Product::PaymentPlanBuilder
+  include Product::Settlement
+  include Product::CreditDecisioning
+  include Product::OneOffCollectionProcessing
+  include Product::Collateral
+  extend  Product::ProductProcessing
+
+  # Loan-specific
+  include Loan::ErrorProcessing
+  include Loan::EmailProcessing
+  include Loan::MetroData
+  include Loan::PaymentHistory
+  include Loan::WorkflowTransitions
+  include Loan::BankTransactionLogic
+  include Loan::PaymentScheduling
+  include Loan::Scopes
+
+  has_paper_trail
+
+  belongs_to :customer, inverse_of: :loans
+  belongs_to :customer_application
+  has_many :promotion_instances, as: :promotable, foreign_key: :promotable_uuid, primary_key: :uuid
+  has_many :promotions, through: :promotion_instances
+
+
+  has_and_belongs_to_many :credit_decisions
+
+  monetize :amount_cents
+  monetize :period_finance_charge_cents, allow_nil: true
+  monetize :past_due_amount_cents, allow_nil: true
+
+  attr_accessor :force_noaa
+
+  attr_accessible :status, :amount_cents, :amount, :term, :repayment_day_of_month,
+    :apr_percentage, :ach_opted_out, :cpa_opt_out, :payment_method, :payments, :state, :paid_off_date, :loan_product_type
+
+  has_many :loan_contracts, inverse_of: :loan
+  has_many :loan_contract_inputs, through: :loan_contracts
+  has_many :loan_tasks,     inverse_of: :loan
+  has_many :installments,   inverse_of: :loan
+  has_many :payments,       inverse_of: :loan
+  has_many :payment_plans,  inverse_of: :loan, foreign_key: :loan_uuid, primary_key: :uuid
+  has_many :payment_transactions, through: :loan_tasks
+  has_many :loan_status_logs, order: "created_at asc"
+  has_many :notes, as: :notable
+  has_many :work_items, as: :workable, foreign_key: :workable_uuid, primary_key: :uuid
+  has_many :collection_logs, as: :loggable, foreign_key: :loggable_uuid, primary_key: :uuid
+  has_many :settlements, as: :settleable, foreign_key: :settleable_uuid, primary_key: :uuid
+
+  has_many :product_sales, as: :product, foreign_key: :product_uuid, primary_key: :uuid
+  has_many :debt_sales, through: :product_sales
+
+  has_one :spouse
+  has_one :veritec_notification, foreign_key: :loan_uuid, primary_key: :uuid
+  has_many :metro_requests
+  has_many :metro_files, through: :metro_requests
+
+  has_one :product_owner, as: :product_ownable, foreign_key: :product_ownable_uuid, primary_key: :uuid
+  has_one :collateral_owner, as: :collateral_ownable, foreign_key: :collateral_ownable_uuid, primary_key: :uuid
+
+  before_create :set_defaults!
+  before_save :invalidate_active_product_cache
+  before_save :record_status_change
+  before_save :ensure_periodic_charge
+  before_save :update_repayment_day, if: Proc.new {|loan| loan.repayment_day_of_month_changed?}
+  before_save :ensure_illinois_correct_product_type
+  before_save :ensure_proper_ownership!
+  before_save :set_day_settings
+  before_save :update_collection_logs
+
+  after_initialize :default_values
+
+  accepts_nested_attributes_for :loan_contracts
+
+  validate :check_customer_tier
+
+  PAYMENT_METHODS = %w(ach remotely_created_check money_order paper_check no_method_provided card_payment)
+  CONSECUTIVE_PAYMENTS_FOR_GRACE_PERIOD = 3
+
+  validates :payment_method, inclusion: { in: PAYMENT_METHODS,
+                                          message: "payment method must be one of #{PAYMENT_METHODS}!" }
+
+  attr_synchronize :customer
+  
+  def product_type
+    :installment
+  end
+
+  def ensure_illinois_correct_product_type
+    if self.state_logic.state_name == "Illinois" && self.amount
+      if self.apr_percentage && self.apr_percentage <= 0.36
+        self.loan_product_type = "installment"
+      else
+        if self.amount <= 1500
+          self.loan_product_type = "small_consumer_under_1500"
+        else
+          self.loan_product_type = "small_consumer"
+        end
+      end
+    end
+  end
+
+  def check_customer_tier
+    return true if status_changed? && (status_was == 'cancelled' || cancelled?)
+
+    if apr_percentage && apr_percentage > 1.2
+      errors.add(:apr_percentage, "Loan APR is too high, max is 120% or 1.2 in this input box")
+    end
+
+    if customer && applied?
+      if (customer.manual_override_term || customer.max_term) < term
+        errors.add(:term, "Loan term must be at most #{customer.manual_override_term || customer.max_term}")
+      end
+
+      if customer.maximum_borrow_amount.to_money < amount
+        errors.add(:amount, "Loan Amount must be at most #{customer.maximum_borrow_amount}")
+      end
+
+      if customer.minimum_borrow_amount.to_money > amount
+        errors.add(:amount, "Loan Amount must be at least #{customer.minimum_borrow_amount}")
+      end
+    end
+  end
+
+  def set_funding_date
+    self.funding_date = calculate_funding_date
+    # important that this is right after the funding date
+    self.repayment_day_of_month ||= self.funding_date.try(:day)
+  end
+
+  def ensure_right_product_type
+    if state_logic.products.values.any? {|p| p[:loan_product_type] }
+      if self.loan_product_type && product = state_logic.products.values.find {|p| p[:max_apr] >= self.apr_percentage}
+        self.loan_product_type = product[:loan_product_type] if self.loan_product_type.to_sym != product[:loan_product_type]
+      end
+    end
+  end
+
+  def set_defaults!
+    set_state
+    set_funding_date
+    set_decision
+    self.rebate_method = state_logic.rebate_method
+    self.event_updated_at = Time.now
+    set_loan_type!
+  end
+
+  def set_loan_type!
+    self.loan_type = state_logic.loan_type
+    self.ensure_illinois_correct_product_type
+  end
+
+  def record_status_change
+    if status_changed?
+      lsl = loan_status_logs.build
+      lsl.status = self.status
+      lsl.credit_decision = customer.try(:current_or_new_decision)
+      lsl.save
+    end
+  end
+
+  def state=(val)
+    @state_logic = nil  # clear state logic cache
+    self['state'] = val
+  end
+
+  def unbook_interest(eff_date, amount = nil)
+    amount ||= [interest_forgiven(eff_date), interest_forgiven_us_rule(eff_date), 0.to_money].max
+    if amount > 0
+      lt = loan_tasks.create
+      lt.unbook_interest(amount, eff_date)
+      lt.save
+    end
+  end
+
+  # FIXME: review, name, purpose
+  def modifiable?
+    self.current_state < :current
+  end
+
+  # calculates what the fraction of each payment period is out of a year.  Only the first
+  # period deviates from 1 / 12.0 currently
+  def period_length_years
+    lengths = first_period_lengths
+
+    partial_period = lengths[:partial_period]
+    full_period = lengths[:full_period]
+    [(partial_period + full_period) / 12.0] + [1/12.0] * (term - 1)
+  end
+
+  # Called by a child returned loan task
+  #
+  def returned_loan_task(lt)
+    lt.return!
+    # Need to determine whether or not we are going into default
+    # manual currently no need to do anything
+  end
+
+  def paid_principal(as_of = Date.today)
+    # principal on the funding date so attached to the issue_loan task -
+    # principal on the date in interest
+    calculate_principal(max_issue_date, ['issue_loan', 'return']) - calculate_principal(as_of)
+  end
+
+  def leftover_installment_amounts(as_of = Date.today, alternate_installments = nil, use_adjusted_installment_date = false)
+    interest = paid_interest(as_of)
+    principal = paid_principal(as_of)
+    fees = paid_fees(as_of)
+    total_paid = principal + interest + fees
+    hash = {}
+    is = alternate_installments
+    is ||= installments.reload.sort {|i1, i2| use_adjusted_installment_date ? i1.max_installment_date <=> i2.max_installment_date : i1.installment_date <=> i2.installment_date }
+    is.each do |i|
+
+      interest_amount = [i.interest, interest].min
+      interest -= interest_amount
+      interest_amount = i.interest - interest_amount
+      principal_amount = [i.principal, principal].min
+      principal -= principal_amount
+      principal_amount = i.principal - principal_amount
+
+      installment_payment = [total_paid, i.amount_without_fees].min
+      total_leftover = i.amount_without_fees - installment_payment
+      total_paid = total_paid - installment_payment
+
+      specified_installment_date = use_adjusted_installment_date ? i.max_installment_date : i.installment_date
+      hash[specified_installment_date] = { interest:          interest_amount,
+                                           principal:          principal_amount,
+                                           interest_amount:    i.interest,
+                                           principal_amount:  i.principal,
+                                           total:              principal_amount + interest_amount,
+                                           total_leftover:    total_leftover,
+                                           installment:        i,
+                                           installment_amount: i.amount,
+                                           installment_fees: i.late_fee }
+    end
+
+    hash
+  end
+
+  # @return [Hash] total outstanding debt.
+  def total_outstanding(as_of = Date.today)
+    sum_accounts(as_of).values.sum
+  end
+
+  # Schedule a payment, expecting an amount, optional eff_date, method, installment, and skip_recalculate flag
+  #
+  def schedule_payment!(opts = {})
+
+    opts[:eff_date] ||= Date.today
+
+    if opts[:method] && Payment::METHODS_ALLOWING_WEEKEND_EFF_DATES.include?(opts[:method])
+      eff_date = opts[:eff_date].to_date
+    else
+      eff_date = BusinessDate.current_effective_date(opts[:eff_date])
+    end
+
+    amount = opts[:amount].to_money
+
+    raise IllegalPaymentError.new("Loan payoff amount is 0. Can not make new payment::#{self.inspect}\n
+                                  #{opts}") unless amount > 0
+
+                                  options = { amount: amount, eff_date: eff_date, method: opts[:method], payment_plan_id: opts[:payment_plan_id] }
+                                  options = options.merge({ original_amount: amount, original_eff_date: eff_date }) if opts[:installment]
+                                  payment = payments.build(options)
+                                  payment.installment = opts[:installment]
+                                  payment.inactive = opts[:inactive] ? true : false
+                                  payment.skip_recalculate = opts[:skip_recalculate]
+                                  payment.manual_book = opts[:manual_book]
+                                  payment.origin = opts[:origin]
+                                  payment.created_by = opts[:created_by]
+                                  payment.payment_type = opts[:payment_type] if opts[:payment_type]
+
+                                  unless payment.valid? && payment.save
+                                    raise IllegalPaymentError.new("payment is invalid.\n
+                                  Loan::#{self.inspect}\n
+                                  Payment::#{payment.inspect}\n
+                                  Payment Errors::#{payment.errors.inspect}\n
+                                                                  #{opts}")
+                                  end
+
+                                  if payment.amount.to_money != amount.to_money
+                                    Util::Alert.notify_without_error("Amount on payment #{payment.id} didn't match amount set for payment of #{amount.to_money}")
+                                    payment.amount = amount
+                                    payment.save!
+                                  end
+
+                                  return payment
+  end
+
+  def calculate_breakdown(amount, eff_date)
+    amount = amount.to_money
+
+    account_sums = sum_accounts(eff_date, self.payment_waterfall)
+
+    if use_us_rule?
+      waterfall_buckets = self.payment_waterfall
+    else
+      waterfall_buckets = self.payment_waterfall.select { |pt| pt =~ /late|default|charged_off/ }
+    end
+
+    other_buckets = self.payment_waterfall.select {|pt| pt =~ /fees/}
+
+    total_interest = installments.to_a.sum {|i| i.interest}
+
+    interest = total_interest.to_money - paid_interest(eff_date).to_money
+    principal = calculate_principal(eff_date).to_money
+
+    first_installment = installments.date_ordered.last
+
+    installments_hash = unpaid_installments(eff_date).map {|i| {first_installment: i.id == first_installment.id,
+                                                           date: i.installment_date,
+                                                           payment_amount: i.payment_amount,
+                                                           principal: i.principal,
+                                                           interest: i.interest}}
+
+    calc = PaymentCalculator.new(:installments => installments_hash,
+                                 :eff_date => eff_date,
+                                 :interest => interest,
+                                 :principal => principal,
+                                 :account_sums => account_sums,
+                                 :use_waterfall_only => use_us_rule?,
+                                 :waterfall_buckets => waterfall_buckets,
+                                 :other_buckets => other_buckets)
+
+    return calc.calculate_payment_breakdown(amount)
+  end
+
+  def pay!(amount, eff_date = nil, ins_date = nil, force_eff_date = false, payment = nil)
+    eff_date ||= Date.today
+    eff_date = BusinessDate.current_effective_date(eff_date) unless force_eff_date
+    payoff_amount = payoff_amount(eff_date)
+
+    if payoff_amount < amount
+      raise IllegalPaymentError.new("Tried to pay #{amount} for loan #{id} when payoff amount for #{eff_date} is #{payoff_amount(eff_date)}")
+    end
+
+    transaction do
+
+      #noops on most days.  If you are trying to pay into future installments, then it books that interest in order to correctly get the breakdown of interest
+      real_eff_date = if ins_date && BusinessDate.current_effective_date(ins_date) == eff_date
+                        ins_date
+                      else
+                        eff_date
+                      end
+      earn_interest!(real_eff_date)
+
+      if payoff_amount == amount
+        #paying off the loan, unbook extra interest
+        unbook_interest(eff_date)
+      end
+
+      breakdown = calculate_breakdown(amount, eff_date)
+      transaction do
+        lt = loan_tasks.create
+        lt.take_payment(breakdown, eff_date)
+        lt.payment = payment if payment
+        lt.save(validate: false)
+
+        if payoff_amount == amount
+          payoff!(eff_date)
+        end
+        return lt
+      end
+    end
+  end
+
+  def add_credit(amount, eff_date = Date.today, add_to_loan_task = nil)
+    eff_date ||= Date.today
+
+    payoff_amount = payoff_amount(eff_date)
+
+    if payoff_amount < amount
+      raise IllegalPaymentError.new("Tried to credit #{amount} for loan #{id} when payoff amount for #{eff_date} is #{payoff_amount(eff_date)}")
+    end
+
+    transaction do
+      if payoff_amount == amount
+        unbook_interest(eff_date) #paying off the loan, unbook extra interest
+      end
+
+      breakdown = calculate_breakdown(amount, eff_date)
+
+      if breakdown.values.sum > 0
+        transaction do
+          lt = loan_tasks.create
+          lt.add_credit_breakdown(breakdown, eff_date)
+          lt.parent = add_to_loan_task
+          lt.save
+          recalculate_installment_amounts!
+          return lt
+        end
+      end
+    end
+  end
+
+  def add_promotion_credit(amount, eff_date = Date.today)
+    add_credit(amount, eff_date)
+  end
+
+  def next_unpaid_installment(as_of = Date.today)
+    unpaid_installments(as_of).first
+  end
+
+  # returns leftover installments and their breakdown of principal/interest
+  def unpaid_installments(as_of = Date.today)
+    principal = calculate_principal(as_of)
+
+    total_interest = installments.to_a.sum {|i| i.interest}
+
+    interest = total_interest.to_money - paid_interest(as_of).to_money
+
+    return [] if principal <= 0 && interest <= 0
+
+    unpaid_principal, unpaid_interest = 0.to_money, 0.to_money
+    stop, less = false, true
+
+    installments.date_ordered.select do |installment|
+      stop = true unless less
+
+      unpaid_principal += installment.principal
+      unpaid_interest += installment.interest
+      less = (unpaid_principal < principal || unpaid_interest < interest)
+
+      less || !stop
+    end.reverse
+  end
+
+  def paid_installment_count(as_of =  Date.today)
+    installments.count - unpaid_installments(as_of).count
+  end
+
+  def payoff_amount(as_of = 1.business_days.from_now)
+    #This is massively slow. Loads tons of records, hard to test. BAD
+    #TODO fix this and move it out of Loan and to a Payment Calculation model
+    as_of = self.funding_date if as_of.to_date < self.funding_date
+
+    owed_amount = sum_accounts(as_of).values.sum
+    interest_to_earn = calculate_interest_to_earn(eff_date: as_of.to_date).to_money - interest_forgiven(as_of.to_date).to_money
+    if forgive_interest?(as_of)
+      us_rule_payoff = recalculate_us_rule_allocation(as_of).values.sum
+    end
+    [[owed_amount.to_money + interest_to_earn.to_money, us_rule_payoff].compact.min, 0.to_money].max #cant have a less than 0 payoff amount now
+  end
+
+  def payoff_date
+    if installments.empty?
+      generate_payment_schedule.last[:date]
+    else
+      installments.last.installment_date
+    end
+  end
+
+  def next_payment_due_amount(as_of = Date.today)
+    [next_payments(as_of).sum { |pmt| pmt.amount } || 0, payoff_amount].min.to_money
+  end
+
+  def future_payments_amount(as_of = Date.today)
+    payments.active.future(as_of).sum(&:amount).to_money
+  end
+
+  def fees_amount_due(as_of = Date.today)
+    sum_accounts(as_of, ['fees_ar'])['fees_ar']
+  end
+
+  def default_amount_due(as_of = Date.today)
+    sum_accounts(as_of, ['default_principal_ar'])['default_principal_ar'] +
+      sum_accounts(as_of, ['default_interest_ar'])['default_interest_ar']
+  end
+
+  def next_total_amount_due(as_of = Date.today)
+    next_payment_due_amount(as_of) + fees_amount_due(as_of) + calculate_late_amount(as_of) + default_amount_due(as_of)
+  end
+
+  def next_payment_ach_date
+    BusinessDate.current_effective_date(next_payment_due_date) if next_payment_due_date
+  end
+
+  # Returns a set of take payment loan tasks from a given date
+  def take_payments_as_of(as_of = Date.today)
+    loan_tasks.payment.where(eff_date: as_of)
+  end
+
+  def next_payments(as_of = Date.today)
+    @next_payments ||= {}
+    @next_payments[as_of] ||= payments.active.future(as_of).date_ordered.where(eff_date: next_payment_due_date).all
+  end
+
+  def next_payment_due_date(as_of = Date.today)
+    payments.future(as_of).active.date_ordered.last.try(:eff_date)
+  end
+
+  def forgive_interest?(as_of = Date.today)
+    if use_us_rule?
+      false
+    elsif state_logic.payment_breakdown_method == :actuarial
+      true
+    elsif state_logic.interest_forgiveness == :first_period
+      # if its before the first installment date
+      installments.date_ordered.last.installment_date > as_of
+    elsif state_logic.interest_forgiveness == :all
+      true
+    else
+      false
+    end
+  end
+
+  #interest forgiven according to actuarial method
+  #if not installment date, book only the amount of interest accrued since the last
+  #installment date or funding date according to the fdic APR
+  def interest_forgiven(as_of = Date.today)
+    # only do this if we can
+
+    return 0 unless forgive_interest?(as_of)
+
+    return 0.to_money unless status =~ /current|default|late/
+    ordered_installments = installments.date_ordered
+
+    current_installment_period = ordered_installments.reverse.find {|i| i.installment_date >= as_of}
+
+    # no interest to forgive if on the installment date
+    return 0.to_money if as_of == current_installment_period.try(:installment_date)
+
+    last_installment_period = ordered_installments.find {|i| i.installment_date < as_of }
+
+    rate = fdic_apr / 100.0
+    monthly_rate = rate / 12.0
+
+    start_date = last_installment_period.try(:installment_date) || self.funding_date
+
+    days_elapsed = as_of - start_date
+
+    return 0.to_money if days_elapsed < 0
+
+    days_elapsed += 1 #if you are inside of a day its been earned
+
+    principal = calculate_principal(as_of)
+
+    fractional_rate = monthly_rate * days_elapsed / 30.0
+
+    return 0 unless current_installment_interest = current_installment_period.try(:interest)
+    accrued_interest = fractional_rate * principal.to_f
+    [current_installment_interest.to_money - accrued_interest.to_money, 0.to_money].max
+  end
+
+  def interest_forgiven_us_rule(as_of = Date.today)
+    return 0.to_money if simple_interest_loan? || use_us_rule? || payment_breakdown_method != :actuarial
+    interest_to_earn_us_rule = recalculate_us_rule_allocation(as_of.to_date, false)[:interest].to_money
+    interest_to_earn = calculate_interest_to_earn(eff_date: as_of.to_date).to_money
+    earned_interest = sum_accounts(as_of.to_date, ["interest_ar"], "book_interest")["interest_ar"]
+
+    [earned_interest + interest_to_earn - interest_to_earn_us_rule, 0.to_money].max
+  end
+
+  def approved_date
+    if approved_version = self.approved_versions.first
+      approved_version.try(:created_at)
+    else
+      status_log = loan_status_logs.where(status: 'approved').first
+      status_log.try(:created_at)
+    end
+  end
+
+  # Valid states for US:
+  #   * has funding date saved, today is one day or more business days from the funding date, use saved date.
+  #   * has funding date saved, but today is one day or less business days from the funding date, recalc
+  #   * doesn't have funding date saved, generate a funding date 3 business days from now
+  # for UK:
+  #   * has funding date and is not past today's cutoff, valid
+  #   * has funding date and is past today's cut off or was in the past, recalc
+  #   * calculate by adding state logic buffer to today.
+  #
+  def calculate_funding_date
+    return self.funding_date unless applied? || approved?
+
+    now = DateTime.now
+    next_business_time = Time.roll_forward(now) #roll forward to the next day if we are past the cutoff time
+
+    if locale_US?
+      # the funding date is 3 business days after whatever day this is actually
+      calculated_funding_date = state_logic.funding_date_buffer.business_day.after(next_business_time).to_date
+    else
+      # Just add buffer dates to current day since we can fund 24/7 in the UK.
+      calculated_funding_date = Date.today + state_logic.funding_date_buffer.days
+    end
+
+    if self.funding_date
+      if locale_US?
+        # if now or the next business day is less than a business day
+        if next_business_time.to_date.business_days_until(self.funding_date) < 1
+          calculated_funding_date
+        else # the funding date is still valid go with it
+          self.funding_date
+        end
+      else
+        # UK funding is 24/7 so it invalidates if we're just past it.
+        if self.funding_date < Date.today
+          calculated_funding_date
+        else # the funding date is still valid go with it
+          self.funding_date
+        end
+      end
+
+    else
+      calculated_funding_date
+    end
+  end
+
+  def fdic_apr
+    if installments.empty?
+      schedule = generate_payment_schedule
+      payments = schedule.map { |ps| ps[:payment].to_f.abs }
+
+      gap_dates = []
+      gap_dates << self.calculate_funding_date
+      schedule.each do |ps|
+        gap_dates << ps[:date]
+      end
+    else
+      insts = installments.date_ordered.reverse
+      payments = insts.map { |i| i.original_amount.to_f.abs }
+
+      gap_dates = []
+      gap_dates << self.funding_date
+      insts.each do |i|
+        gap_dates << i.installment_date
+      end
+    end
+
+    lengths = first_period_lengths
+    partial_period = lengths[:partial_period]
+    full_period = lengths[:full_period]
+    case state_logic.apr_method
+    when :uk
+      days_between_payments = AprCalculator.days_between_dates(gap_dates)
+      AprCalculator.find_apr_uk(self.amount.to_f, payments, payments.size, 1.0000, days_between_payments)
+    else
+      AprCalculator.find_apr_geq(self.amount.to_f, payments, payments.size, 12, 1, partial_period, full_period)
+    end
+  end
+
+  def finance_charge
+    if installments.empty?
+      generate_payment_schedule.sum {|ps| ps[:interest] }
+    else
+      installments.sum {|i| i.original_interest || i.interest}
+    end
+  end
+
+  def interest_rate
+    apr_percentage && apr_percentage * 100.0
+  end
+
+  def state_logic
+    # do not memoize state_logic
+    @state_logic = begin
+      StateLogic.dispatch(
+        product_type:  self.product_type,
+        state:         self.state,
+        product_owner: self.product_owner.try(:owner)
+      ).new(self.loan_product_type)
+    rescue
+      Util::Alert.notify(
+        "Couldn't dispatch StateLogic with(product_type: #{self.product_type}, state: #{self.state}, product_owner: #{self.product_owner.try(:owner)}) on product: <#{self.class.name}:##{id}>"
+      )
+      nil
+    end
+  end
+
+  def max_fdic_apr
+    (customer.nil? || current_state > :approved) ? state_logic.max_fdic_apr : customer.state_logic_for.max_fdic_apr
+  end
+
+  def payment_breakdown_method
+    if locale_GB?
+      :simple_interest
+    else
+      simple_interest_loan? ? :simple_interest : state_logic.payment_breakdown_method
+    end
+  end
+
+  def loan_amortization_method
+    state_logic.loan_amortization_method
+  end
+
+  def days_per_year
+    self[:days_per_year] || state_logic.days_per_year
+  end
+
+  def yearly_interest_period
+    self[:yearly_interest_period] || state_logic.yearly_interest_period
+  end
+
+  def calculate_apr
+    if max_apr = max_fdic_apr
+      product_apr = self.apr_percentage || customer && customer.product_apr
+      self.apr_percentage = product_apr
+      max_apr = max_apr * 100
+      while fdic_apr > max_apr
+        self.apr_percentage -= 0.01
+      end
+    end
+    self.apr_percentage
+  end
+
+  def ensure_correct_rates_terms!(credit_decision: nil)
+    if self.applied? || self.approved?
+      # we do not want to generate a new decision when we are updating the loan
+      # this causes stale objects between loan and credit_decision if a new decision runs
+      create_cached_decision(credit_decision)
+      set_loan_type!
+      ensure_default_rates_terms
+      ensure_correct_apr
+      ensure_correct_amount
+      ensure_correct_term
+      save_and_rescue_stale_object
+    end
+  end
+
+  def ensure_correct_apr
+    set_state
+    self.loan_product_type = customer.current_or_new_decision.decision_information.try(:[], :loan_product_type)
+    self.apr_percentage = customer.product_apr
+    set_funding_date
+    update_repayment_day
+
+    if max_fdic_apr
+      calculate_apr
+    end
+
+    ensure_illinois_correct_product_type
+
+    if self.loan_amortization_method == :flat_fee
+      self.determine_period_finance_charge
+      ensure_illinois_correct_product_type # should be called twice
+    end
+  end
+
+  def ensure_correct_amount
+    if self.amount > (self.customer.maximum_borrow_amount * CreditDecision::MAXIMUM_BORROW_AMOUNT_THRESHOLD)
+      self.amount = self.customer.maximum_borrow_amount
+    end
+    if self.amount < self.customer.minimum_borrow_amount
+      self.amount = self.customer.minimum_borrow_amount
+    end
+  end
+
+  def ensure_correct_term
+    if self.term.to_i <= 0 ||
+      self.term > [self.customer.manual_override_term, self.customer.max_term].compact.max
+      self.term = self.customer.max_term
+    end
+
+    if (terms_hash = self.available_terms) && !terms_hash.blank?
+      if terms_hash.all? {|t| t[:months] > self.term }
+        self.term = terms_hash.first[:months]
+      elsif terms_hash.all? {|t| t[:months] < self.term }
+        self.term = terms_hash.last[:months]
+      end
+    end
+  end
+
+  def ensure_default_rates_terms
+    self.amount ||= self.coerced_borrow_amount
+    self.term ||= self.customer.max_term
+  end
+
+  def possible_repayment_days(start_date = Date.today)
+    unless state_logic.repayment_day_range
+      1.upto(30).map.to_a
+    end
+    if repayment_day_of_month
+      first_payment = find_payment_date(start_date)
+      state_logic.possible_repayment_days_window.times.map do |i|
+        if state_logic.maximum_first_period_days && (first_payment + i) <= (start_date + state_logic.maximum_first_period_days)
+          repayment_day_of_month + i if (i == 0 || (repayment_day_of_month + i) <= 30)
+        elsif state_logic.maximum_first_period_days.nil?
+          repayment_day_of_month + i if (i == 0 || (repayment_day_of_month + i) <= 30)
+        end
+      end.compact
+    end
+  end
+
+  def preview_additional_payment(amount, eff_date = Date.today, current_date = Date.today)
+    if use_us_rule? && amount > 0
+      recalced = recalculate_installment_amounts(eff_date, amount)
+      installments = recalced.map {|(k,v)| Installment.new(principal: v[:principal], interest: v[:interest], installment_date: k)}
+    end
+
+    leftover_installment_amounts = self.leftover_installment_amounts(eff_date, installments).sort
+    payment_amount = amount.to_money
+    cutoff_date = eff_date.next_month
+    payment_remaining = 0.to_money
+
+    leftover_installment_amounts.each do |(date, installment_info)|
+      if payment_amount > 0
+        if date < cutoff_date
+          p_amount = [payment_amount, installment_info[:interest]].min
+          payment_amount -= p_amount
+          installment_info[:interest] -= p_amount
+        end
+
+        p_amount = [payment_amount, installment_info[:principal]].min
+        payment_amount -= p_amount
+        installment_info[:principal] -= p_amount
+      end
+
+    payment_remaining += installment_info[:principal]
+
+    end
+
+    remaining_payment_amount = 0.to_money
+    last_payment_date = nil
+    extra_months = 0
+
+    leftover_installment_amounts.each do |(date, installment_info)|
+      break if payment_remaining <= 0
+    total_installment_amount = installment_info[:interest] + installment_info[:principal]
+
+    payment_remaining += installment_info[:interest]
+
+    if date < current_date
+      extra_months += 1 if total_installment_amount > 0
+      next
+    end
+
+    installment_payment = installment_info[:installment_amount]
+    p_amount = [payment_remaining, installment_payment].min
+
+    remaining_payment_amount += p_amount
+    payment_remaining -= p_amount
+    last_payment_date = date
+
+    end
+
+    remaining_payment_amount += payment_remaining if payment_remaining > 0 # add on any extraneous amounts that are due
+    last_payment_date = last_payment_date.try(:next_month, extra_months) # add on the calculated extraneous months needed to pay off this stuff
+
+    {:payment => amount, :remaining_payments => remaining_payment_amount, :payoff_date => last_payment_date}
+  end
+
+  def future_interest_earned?(eff_date)
+    loan_tasks.book_interest.created_or_completed.where("eff_date > ?", eff_date).exists?
+  end
+
+  def earn_interest!(eff_date = [self.funding_date, Date.today].compact.max, force = false)
+    return if (interest_blocked_by_payment_plan? && !force)
+    return if (future_interest_earned?(eff_date) && !force) #if at a future date we have earned interest past this point, it is dangerous to book interest now
+    interest = calculate_interest_to_earn(eff_date: eff_date)
+    return unless interest > 0
+
+    transaction do
+      lt = loan_tasks.create
+      lt.book_interest(interest, eff_date)
+      lt.save
+      lt.complete!
+      lt
+    end
+  end
+
+  def interest_blocked_by_payment_plan?
+    active_short_term_payment_plan? && self.loan_type != :precomputed
+  end
+
+  def calculate_interest_to_earn_prebooked(eff_date = [self.funding_date, Date.today].compact.max, subtract_earned = true)
+    return 0.to_money if charged_off? || paid_off? || calculate_principal(eff_date) <= 0 # don't earn interest while charged off
+
+    cutoff_date = eff_date.next_month
+    if (i = installments.date_ordered.last) && i.installment_date >= cutoff_date
+      relevant_installments = [i]
+    else
+      relevant_installments = installments.past(cutoff_date)
+    end
+    bookable_interest = relevant_installments.to_a.sum {|ri| ri.interest}
+    earned_interest = sum_accounts(eff_date, ["interest_ar"], "book_interest")["interest_ar"]
+    difference = bookable_interest.to_money - earned_interest
+
+    [difference, 0.to_money].max
+  end
+
+  def calculate_interest_to_earn(opts = {})
+    defaults = {
+      eff_date: [self.funding_date, Date.today].compact.max,
+      funding_date: self.funding_date,
+      subtract_earned: true,
+      principal_stream: nil,
+      calculation_only: false,
+      force_us_rule: false,
+      ignore_principal_stream: false
+    }
+
+    opts = defaults.merge(opts)
+
+    if use_us_rule? || opts[:force_us_rule]
+      if !opts[:calculation_only] && (paid_off? || calculate_principal(opts[:eff_date]) <= 0)
+        0.to_money
+      else
+        calculate_interest_to_earn_us_rule(eff_date:                     opts[:eff_date],
+                                           funding_date:                 opts[:funding_date],
+                                           subtract_earned:              opts[:subtract_earned],
+                                           additional_principal_stream:  opts[:principal_stream],
+                                           ignore_principal_stream:      opts[:ignore_principal_stream],
+                                           days_in_year:                 yearly_interest_period,
+                                           apr_percentage:               apr_percentage,
+                                           finance_charge:               finance_charge,
+                                           cap_interest:                 cap_interest? )
+      end
+    else
+      calculate_interest_to_earn_prebooked(opts[:eff_date], opts[:subtract_earned])
+    end
+  end
+
+  def recalculate_us_rule_allocation(eff_date = [self.funding_date, Date.today].max, subtract_earned = true)
+
+    payments = self.payments.where("eff_date <= ?", eff_date).date_ordered.reverse.to_a
+    payments.select! {|pt| pt.loan_task.try(:completed?) || pt.loan_task.try(:created?) }
+
+    payments += self.loan_tasks.where(type: "add_credit_breakdown").where(status: ["created", "completed"]).to_a
+    payments.sort {|lt1, lt2| lt1.eff_date <=> lt2.eff_date }
+
+    if applied? || approved?
+      current_principal = amount
+    else
+      current_principal = calculate_principal(max_issue_date, 'issue_loan')
+    end
+
+    principal = interest = interest_booked = 0.to_money
+    rolling_principal = current_principal
+    additional_principal_stream = [{amount: current_principal, date: self.funding_date}]
+    paid_interest = []
+
+    payments.each_with_index do |payment, i|
+      interest_to_earn = calculate_interest_to_earn(eff_date: payment.eff_date, subtract_earned: false, principal_stream: additional_principal_stream, calculation_only: true, force_us_rule: true, ignore_principal_stream: true)
+      interest_to_earn -= interest_booked
+      interest_to_earn = [0.to_money, interest_to_earn].max
+      interest_booked += interest_to_earn
+      interest += interest_to_earn.to_money
+      principal_amount = [[rolling_principal + interest, payment.amount].min - interest, 0.to_money].max
+      interest -= [payment.amount, interest].min
+      rolling_principal -= principal_amount
+      principal += principal_amount
+      paid_interest << interest_to_earn
+      additional_principal_stream << { date: payment.eff_date, amount: -principal_amount }
+    end
+
+    paid_interest_amount = subtract_earned ? paid_interest.sum.to_money : 0.to_money
+
+    {interest: calculate_interest_to_earn(eff_date: eff_date, subtract_earned: false, principal_stream: additional_principal_stream, calculation_only: true, force_us_rule: true, ignore_principal_stream: true) - paid_interest_amount, principal: rolling_principal}
+  end
+
+  def use_us_rule?
+    [:actuarial, :amortization].include?(payment_breakdown_method.try(:to_sym)) && rebate_method.try(:to_sym) == :us_rule ||
+      simple_interest_loan?
+  end
+
+  def simple_interest_loan?
+    self.loan_type.try(:to_sym) == :simple_interest
+  end
+
+  def precomputed_loan?
+    self.loan_type.nil? ||
+      loan_type.try(:to_sym) == :precomputed
+  end
+
+  def cap_interest?
+    precomputed_loan?
+  end
+
+  def self.amount_values
+    10.upto(50).map do |i|
+      ["$%.2f" % (i * 100), i*100]
+    end
+  end
+
+  def self.repayment_day_of_month_values
+    [
+      ["1st of month", 1],
+      ["15th of month", 15]
+    ]
+  end
+
+  def self.term_values
+    [
+      ["12 months", 12],
+      ["24 months", 24],
+      ["36 months", 36]
+    ]
+  end
+
+  def self.determine_repayment_day(date = Date.today, state = nil)
+    state_logic = StateLogic.dispatch(product_type: :installment, state: state).new
+
+    minimum_period_length = state_logic.minimum_first_period_days || 30
+    maximum_period_length = state_logic.maximum_first_period_days
+    # minimum period length 30 days
+    # today is jan 10th, next payment date should be Feb 15th
+    # minimum period length 15 days
+    # today is jan 10th, next payment date would be Feb 1st
+
+    if state_logic.first_period_equal
+      repayment_day = date.day
+    elsif maximum_period_length && maximum_period_length < minimum_period_length + 16
+      repayment_day = (date + minimum_period_length).day
+    elsif (date + minimum_period_length).day < 15
+      15
+      #minimum period length 30 days
+      #today is jan 20th, next date would be march 1st
+      #minimum period length 15 days
+      #today is jan 20th, next date would be feb 15th
+    else
+      repayment_day = 1
+    end
+  end
+
+  def typical_payment
+    if installments.empty?
+      generate_payment_schedule.first[:payment]
+    else
+      i = installments.chronological.first
+      i.payment_amount && i.payment_amount > 0 ? i.payment_amount : i.amount
+    end
+  end
+
+  def most_common_payment_amount
+    amounts = if installments.empty?
+                generate_payment_schedule.map { |p| p[:payment] }.map(&:to_f)
+              else
+                installments.map(&:amount).map(&:to_f)
+              end
+    amounts.delete_if {|x| x == 0.0}
+    freq = amounts.inject(Hash.new(0)) { |h,v| h[v] += 1; h }
+    amounts.sort_by { |v| freq[v] }.last
+  end
+
+  def determine_period_finance_charge
+    return unless state_logic.loan_amortization_method == :flat_fee
+
+    if self.apr_percentage && self.amount
+      return unless tiers = state_logic.loan_amount_fee_tiers
+
+      tier = tiers.find {|k,v| k === self.amount.to_f }
+
+      return unless tier
+
+      self.period_finance_charge = tier[1]
+
+      while (fdic_apr > (apr_percentage * 100.0))
+        self.period_finance_charge -= 1.to_money
+      end
+
+      while (fdic_apr < state_logic.minimum_fdic_apr)
+        self.period_finance_charge += 1.to_money
+      end
+    end
+  end
+
+  def ensure_periodic_charge
+    if apr_percentage_changed?
+      determine_period_finance_charge
+    end
+  end
+
+  def recalculate_installment_amounts!(eff_date = [self.funding_date, Date.today].max)
+    transaction do
+      if calculations = recalculate_installment_amounts
+        installments.reload
+        calculations.values.each do |hash|
+          installment = installments.find {|i| i.id == hash[:installment_id]}
+          installment.principal = hash[:principal]
+          installment.interest = hash[:interest]
+          installment.save
+        end
+      end
+    end
+  end
+
+  def recalculate_installment_amounts(eff_date = [self.funding_date, Date.today].max, additional_amounts = nil)
+    return unless use_us_rule?
+
+    payments = self.payments.date_ordered.reverse.to_a
+
+    if additional_amounts
+      payments << Payment.new(eff_date: eff_date, amount: additional_amounts)
+      payments.sort {|p1, p2| p1.eff_date <=> p2.eff_date}
+    end
+
+    if applied? || approved?
+      current_principal = amount
+    else
+      current_principal = calculate_principal(max_issue_date, 'issue_loan')
+    end
+
+    revised_installments = {}
+    principal = interest = interest_booked = principal_booked =  0.to_money
+    max_date = installment = nil
+    rolling_principal = current_principal
+    additional_principal_stream = []
+
+    payments.each_with_index do |payment, i|
+      if max_date && payment.eff_date > max_date
+        principal_to_book = [[current_principal - principal_booked, installment.original_amount - interest].min, 0.to_money].max
+        principal_booked += principal_to_book
+
+        revised_installments[max_date] = {principal: principal_to_book,
+                                          interest: [interest, installment.original_amount].min,
+                                          installment_id: installment.id}
+        max_date = nil
+        principal = [principal - principal_to_book, 0.to_money].max
+        interest = [interest - [interest, installment.amount].min, 0.to_money].max
+      end
+      if payment.installment
+        max_date = [payment.eff_date, payment.installment.installment_date].max
+        installment = payment.installment
+      end
+      interest_to_earn = calculate_interest_to_earn(eff_date: payment.eff_date, subtract_earned: false, principal_stream: additional_principal_stream, calculation_only: true)
+      interest_to_earn -= interest_booked
+      interest_to_earn = [0.to_money, interest_to_earn].max
+      interest_booked += interest_to_earn
+      interest += interest_to_earn.to_money
+      principal_amount = [[rolling_principal + interest_to_earn, payment.amount].min - interest_to_earn, 0.to_money].max
+      rolling_principal -= principal_amount
+      principal += principal_amount
+
+      #skip the payment if its already been booked because the principal amounts are already considered in the principal stream in this case
+      unless payment.loan_task && payment.loan_task.payment_transactions.any? {|pt| !pt.cancelled?} || payment.inactive
+        ins_date = payment.try(:installment).try(:installment_date)
+        real_eff_date = if ins_date && BusinessDate.current_effective_date(ins_date) == payment.eff_date
+                          ins_date
+                        else
+                          payment.eff_date
+                        end
+        additional_principal_stream << { date: real_eff_date, amount: -principal_amount }
+      end
+    end
+
+    if max_date
+      revised_installments[max_date] = {principal: principal,
+                                        interest: interest,
+                                        installment_id: installment.id}
+    end
+
+    revised_installments
+  end
+
+  def approve_and_issue!
+    approve!
+    issue!
+  end
+
+  def active?
+    self.class.active_statuses.include? status.to_sym
+  end
+
+  def status_where_no_contract?
+    # Convenience method..use signed_all_contracts? in LoansAndCreditLines module for an absolute check
+    current? || late? || in_default? || paid_off?
+  end
+
+  def update_repayment_day
+    if self.funding_date &&
+      (self.find_payment_date(self.funding_date) - self.funding_date) > state_logic.maximum_first_period_days
+
+      self.repayment_day_of_month = (self.funding_date + state_logic.minimum_first_period_days).day
+    end
+
+    if state_logic.first_period_equal && self.funding_date
+      self.repayment_day_of_month = self.funding_date.day
+    end
+  end
+
+  def late_principal_and_interest_amounts(eff_date = Date.today)
+    leftovers = leftover_installment_amounts(eff_date, nil, true) #use adjusted installment date instead
+    leftovers = leftovers.select {|k,v| k <= eff_date && v[:total_leftover] > 0 } # only mark late installments that haven't been fully paid
+    principal = leftovers.values.sum { |v| v[:principal] }.to_money
+    interest = leftovers.values.sum { |v|  v[:interest] }.to_money
+    { principal: principal, interest:  interest }
+  end
+
+  def unset_paid_off_date!
+    if self.paid_off_date
+      self.paid_off_date = nil
+      save
+    end
+  end
+
+  def paid_off_log_date
+    loan_status_logs.find {|lsl| lsl.status.to_sym == :paid_off}.try(:created_at).try(:to_date)
+  end
+
+  def last_installment
+    self.installments.date_ordered.first
+  end
+
+  def update_payment_dates!(day_of_month, past = Date.today, adjust_installments = false)
+    payments_to_save = update_payment_dates(day_of_month, past)
+    retval = payments_to_save.all? { |p| p.skip_recalculate = true; p.save }
+    return false unless retval
+    update_installment_date_to_payment_eff_date(payments_to_save) if adjust_installments
+    reload
+    self.repayment_day_of_month = day_of_month
+    self.recalculate_installment_amounts!
+    self.save
+    retval
+  end
+
+  def update_installment_date_to_payment_eff_date(payments)
+    payments.each do |p|
+      if p.installment
+        p.installment.installment_date = p.eff_date
+        p.installment.save
+      end
+    end
+  end
+
+  def update_payment_dates(day_of_month, past = Date.today)
+    payments = self.payments.future(past).date_ordered.reverse.map do |payment|
+      next unless payment.can_edit?
+      begin
+        payment.eff_date = Date.new(payment.eff_date.year, payment.eff_date.month, day_of_month)
+      rescue ArgumentError #invalid date, means end of month
+        payment.eff_date = payment.eff_date.end_of_month
+      end
+      payment
+    end.compact
+
+    payments
+  end
+
+  def needs_payment_details?
+    state_logic.need_payment_details? && customer.ddis.empty? && !customer.given_debit_card?
+  end
+
+  def all_completed_payments(as_of_date = Date.today)
+    self.loan_tasks.where("eff_date <= ?", as_of_date).select { |lt| lt.take_payment_related? && lt.completed? }
+  end
+
+  def last_successful_payment(as_of_date = Date.today)
+    all_completed_payments(as_of_date).sort { |lt1, lt2| lt1.eff_date <=> lt2.eff_date }.last
+  end
+
+  def promotions_hash_with_loan_task_applied
+    promos = []
+    self.promotion_instances.each do |instance|
+      promo = instance.promotion.attributes
+      promo['applied'] = !instance.loan_task.nil?
+      promos << promo
+    end
+    promos
+  end
+
+  def create_promotion_loan_task(promotion)
+    pi = self.promotion_instances.where(promotion_uuid: promotion.uuid).first
+    if pi.loan_task.nil?
+      pi.loan_task = self.add_promotion_credit(Promotion::Engine.calculate_discount(self, promotion))
+      pi.status = 'applied'
+      pi.save
+      pi
+    end
+  end
+
+  def can_apply_promotions?
+    self.current_state > :approved && self.payoff_amount > 0
+  end
+
+  def available_grace_period?
+    return true if !self.has_used_grace_period?
+
+    consecutive_payments = 0
+    self.installments.chronological.each do |installment|
+      if installment.installment_date <= Date.today
+        if installment.grace_period?
+          consecutive_payments = 0
+        elsif installment.assumed_paid? && !installment.grace_period?
+          consecutive_payments += 1
+        end
+      end
+    end
+
+    consecutive_payments >= CONSECUTIVE_PAYMENTS_FOR_GRACE_PERIOD
+  end
+
+  def has_used_grace_period?
+    self.installments.chronological.any? do |installment|
+      installment.grace_period?
+    end
+  end
+
+  def using_grace_period?
+    self.installments.chronological.each do |installment|
+      if installment.grace_period? && !installment.inactive && !installment.assumed_paid?
+        return true
+      end
+    end
+    false
+  end
+
+  def manual_charge_off!(eff_date = Date.today)
+    transaction do
+      principal_accounts = sum_accounts(eff_date, ['late_principal_ar', 'default_principal_ar', 'due_principal_ar', 'principal_ar'])
+      principal_accounts.reject! {|k,v| v <= 0}
+      lt = loan_tasks.new
+      return if principal_accounts.values.sum <= 0
+      lt.charge_off(principal_accounts, eff_date)
+      lt.save
+      charge_off!
+      return lt
+    end
+  end
+
+  def should_charge_off?(eff_date = Date.today)
+    l_installments = late_installments(eff_date)
+    days_ago = l_installments.first && eff_date - l_installments.first[0] || 0
+    installment_count = l_installments.count
+
+    days_ago > state_logic.charged_off_days &&
+      installment_count >= state_logic.charged_off_installment_count &&
+      payment_activity(eff_date - state_logic.charged_off_days) == 0
+  end
+
+  def late_installments(eff_date = Date.today)
+    lia = leftover_installment_amounts(eff_date, nil, true)
+    lia.select {|k, v| v[:total_leftover] > 0 && k < eff_date }
+  end
+
+  def payment_activity(eff_date = Date.today, statuses = 'completed')
+    statuses = [statuses].flatten
+    payments.where("payments.eff_date > ?", eff_date).joins(:loan_task).where("loan_tasks.status in (?)", statuses).count
+  end
+
+  def balance_loan!(eff_date = Date.today)
+    accts = sum_accounts(eff_date)
+    if (accts['principal_ar'] <=> 0) != (accts['interest_ar'] <=> 0) && #if signs are different
+       accts['principal_ar'].abs == accts['interest_ar'].abs #and amounts are the same
+      lt = loan_tasks.new
+      positive_acct = accts['principal_ar'] > 0 ? 'principal_ar' : 'interest_ar'
+      negative_acct = accts['principal_ar'] < 0 ? 'principal_ar' : 'interest_ar'
+      lt.balance_loan(accts['principal_ar'], positive_acct, negative_acct, eff_date)
+      lt.save
+      lt
+    end
+  end
+
+  def available_terms(manual_override = true)
+    p = self.dup
+    customer_terms = customer.available_terms_by_tier(manual_override)
+    return [] unless customer_terms
+    terms = customer_terms[customer.customer_tier || :bronze]
+    terms ||= customer_terms[:bronze]
+    terms = terms.map do |months|
+      p.term = months
+      {
+        months: months,
+        monthly_payment: p.typical_payment.to_f
+      }
+    end
+    if terms.all? {|months| months[:monthly_payment] < customer.minimum_monthly_payment}
+      terms = [terms.first]
+    elsif terms.all? {|months| months[:monthly_payment] > customer.maximum_monthly_payment}
+      terms = [terms.last]
+    elsif terms.all? {|months| months[:monthly_payment] < customer.minimum_monthly_payment || months[:monthly_payment] > customer.maximum_monthly_payment }
+      # if non of the payments fit, just give them the first payment that falls below the minimum monthly payment since minimum monthly payment isn't a hard rule
+      terms = [terms.select {|t| t[:monthly_payment] < customer.minimum_monthly_payment }.first]
+    else
+      terms.reject! {|months| months[:monthly_payment] < customer.minimum_monthly_payment || months[:monthly_payment] > customer.maximum_monthly_payment}
+    end
+    terms
+  end
+
+  def schedule(start_date = Date.today)
+    schedule = []
+    payments.monthly.includes(:loan_task).date_ordered.reverse.each do |payment|
+      schedule << { date: PaymentPlans::PaymentDate.default_formatted_date(payment.eff_date),
+                    amount_owed: humanized_money(payment.amount) } if payment.eff_date > start_date
+    end
+
+    schedule
+  end
+
+  def customer_pay_frequency
+    customer_application.try(:pay_frequency)
+  end
+
+  def set_day_settings
+    if applied? || approved?
+      self.days_per_year = state_logic.days_per_year
+      self.yearly_interest_period = state_logic.yearly_interest_period
+    end
+  end
+
+  def zero_days_past_due?
+    installment = installments.date_ordered.adjusted_future(Date.today).reverse.first
+
+    status == "current" &&
+      installment &&
+      installment.adjusted_installment_date == Date.today &&
+      installment.loan_tasks(&:returned) &&
+      past_due_amount > 12.to_money
+  end
+
+  def past_due_X_days?(days)
+    if days == 0
+      zero_days_past_due?
+    else
+      days_late == days && past_due_amount >= 12.to_money
+    end
+  end
+
+  def installment_due_in_X_days?(days)
+    installments.adjusted_future(Date.today).date_ordered.last.try(:adjusted_installment_date) == Date.today + days.days
+  end
+
+  private
+
+  def default_values
+    self.status ||= 'applied'
+    self.payment_method ||= (locale_GB? ? 'card_payment' : 'ach')
+
+    # http://www.tatvartha.com/2011/03/activerecordmissingattributeerror-missing-attribute-a-bug-or-a-features/
+  rescue ActiveModel::MissingAttributeError
+    # this should only happen on Model.exists?() call. It can be safely ignored.
+  end
+
+  def funding_date_after_27th?
+    [28,29,30,31].include? funding_date.try(:day)
+  end
+
+end

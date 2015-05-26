@@ -1,0 +1,54 @@
+FactoryGirl.define do
+  factory :promotion do
+    name 'fixed_discount'
+    coupon_code { SecureRandom.hex }
+    rule_type 'fixed_discount'
+    frontend_label 'fixed_discount'
+    rule_amount 50.0
+    priority 1
+    enabled true
+    require_previous_loan false
+    require_first_loan false
+    stop_rule_processing false
+    payments_count 1
+  end
+
+  trait :april_transunion_letter do
+    name 'april_transunion_promotion'
+    coupon_code { 'special50' }
+  end
+
+  trait :may_transunion_letter do
+    name 'may_transunion_promotion'
+    coupon_code { 'care50' }
+  end
+
+  trait :august_transunion_letter do
+    name 'august_transunion_promotion'
+    coupon_code { 'good50' }
+  end
+
+  trait :require_previous_loan do
+    require_previous_loan { true }
+  end
+
+  trait :require_first_loan do
+    require_first_loan { true }
+  end
+
+  trait :stop_rule_processing do
+    stop_rule_processing { true }
+  end
+
+  trait :low_priority do
+    priority { 10 }
+  end
+
+  trait :disabled do
+    enabled { false }
+  end
+
+  trait :one_use do
+    uses_per_customer 1
+  end
+end

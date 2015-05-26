@@ -1,0 +1,158 @@
+class Admin::CustomerApplicationsController < AdminController
+  layout "admin/customers"
+
+  def index
+    @data_source = admin_customer_applications_path(format: 'json')
+    respond_to do |format|
+      format.html
+      format.json { render json: CustomerApplicationsDataTable.new(view_context) }
+    end
+  end
+
+  def show
+    authorize! :show, CustomerApplication
+
+    application = CustomerApplication.where(id: params[:id]).first
+    render json: application.information.to_json
+  end
+
+  def new
+    @customer = Customer.new
+    @customer_application = CustomerApplication.new
+    @address = Address.new
+  end
+
+  # Refactor this later since it copies another controller and some of it is generally jank.
+  def create
+    @customer = Customer.new(params[:customer])
+    # the current code for #address forces a database query, but that is broken if the customer is a new record
+    @address  = @customer.addresses.first
+
+    @customer.income.pay_frequency = Income.pay_frequency_values[0][1] # shim for new design hiding these fields for unemployed
+    @customer.credit_report_authorization = true
+    # @customer.privacy_policy_consent = true
+    @customer.electronic_communications_consent = true
+
+    @customer_errors = []
+
+    lead = Lead.new
+    @lead_provider = LeadProvider.where(identifier: 'internal').first
+    EventEmitterProcessor.create('stat' => 'app.leads.reject_error', 'count' => '1', 't' => Time.now.to_i)
+    lead.input = params[:customer].merge(:lead_provider => 'internal')
+    lead.source = 'internal'
+    lead.lead_provider = @lead_provider
+
+
+    begin
+      @customer.generate_password
+      # If this field is necessary I can add it to the form
+      # product_type = customer_application_attributes.try(:[], :product_type)
+      # if product_type && @customer.available_product_types.include?(product_type.to_sym)
+      #   @customer.ongoing_application.product_type = product_type
+      # end
+
+      # Necessary?
+      # if data && data.try(:[], :loan_purpose)
+      #   @customer.ongoing_application.loan_purpose = data.try(:[], :loan_purpose)
+      # end
+
+      if promo_code_error = process_promotion_code!
+        @customer_errors << promo_code_error
+        render(:action => :new) and return
+      end
+
+      @customer = @customer.current_or_existing_customer!
+      @customer.ongoing_application.lead_raw = lead.input
+      @customer.ongoing_application.lead = lead.input
+      @customer.ongoing_application.product_type = @customer.ongoing_application.product_type_waterfall
+
+      if !@customer.save
+        lead.decision = :reject
+        lead.decision_reasons = ["Model Errors #{@customer.errors.keys.join(" ")}"]
+        lead.save
+        EventEmitterProcessor.create('stat' => 'app.leads.reject_error', 'count' => '1', 't' => Time.now.to_i)
+        @customer_errors.push *@customer.errors.full_messages
+        render(:action => :new) and return
+      end
+
+      @customer.customer_consent.try(:save)
+
+      warden.set_user @customer
+    rescue => err
+      Util::Alert.notify(err)
+      EventEmitterProcessor.create('stat' => 'app.leads.server_error', 'count' => '1', 't' => Time.now.to_i)
+      @customer_errors << "Server Error. Please try this again!"
+      render(:action => :new) and return
+    end
+    EventEmitterProcessor.create('stat' => "app.leads.#{lead.source}.created", 'count' => '1', 't' => Time.now.to_i)
+
+    @customer.ensure_authentication_token!
+    @customer.run_credit_reports!(true)
+    @customer.ongoing_application.customer = @customer # why is this done anyway?!?!?!
+    @customer.transunion_credit_reports.reload
+    @customer.new_decision # try running a new decision here
+
+    begin
+      if @customer.can_apply?
+        Timeout.timeout(20) do
+          @customer.run_microbilt_report! if @customer.need_microbilt_report?
+          @customer.ongoing_application.bank_account_information = 'complete' if @customer.ongoing_application.reload.bank_information_complete?
+
+          @customer.run_clarity_report! if @customer.need_clarity_report?
+        end
+      else
+        logger.info "CPL Lead ##{lead.id} did not meet microbilt requirements:"
+        logger.info "CPL Reasons: #{@customer.can_run_microbilt?} #{lead.cpl_source?} #{@customer.need_microbilt_report?} #{@customer.can_apply?}"
+      end
+    rescue Timeout::Error => err
+      #timed out pulling microbilt here
+      Util::Alert.notify(err)
+    end
+
+    lead.customer = @customer
+    lead.credit_decision = @customer.current_or_new_decision
+    lead.decision = @customer.can_apply? ? :import : :reject
+    lead.decision_reasons = @customer.cannot_apply_reasons
+    lead.save
+
+    @customer.leads.reload
+    @customer.ongoing_application.set_lead_source(true)
+    @customer.ongoing_application.save
+
+    OfacCustomerJobProcessor.create(uuid: @customer.uuid, job: "do_ofac_check!") if locale_US?
+
+    if @customer.can_apply?
+      CustomerMailerJobProcessor.create(job: 'welcome_email_leads', uuid: @customer.uuid, password: @customer.password)
+
+      EventEmitterProcessor.create('stat' => 'app.leads.import', 'count' => '1', 't' => Time.now.to_i)
+      CustomerApplicationJobProcessor.create(uuid: @customer.ongoing_application.uuid, job: "initialize_stage_engine!")
+
+      flash[:preapproval_message] = "Customer is pre-approved!"
+      redirect_to admin_customer_path(@customer.id, :internal_lead => true)
+    else
+      EventEmitterProcessor.create('stat' => 'app.leads.reject', 'count' => '1', 't' => Time.now.to_i)
+
+      @customer.notify_adverse_action! if @customer.should_notify_adverse_action?
+      flash[:preapproval_message] = @customer.cannot_apply_reasons.first
+      redirect_to admin_customer_path(@customer.id, :internal_lead => true)
+    end
+  end
+
+  protected
+
+  # @returns error message string or nil
+  # @todo move this to the model
+  def process_promotion_code!
+    coupon_code = params[:coupon_code]
+    return unless coupon_code.present?
+
+    promotion = Promotion.where("lower(coupon_code) = lower(?)", coupon_code).first ||
+      PreapprovedRecord.claim_code(@customer, coupon_code)
+
+    if promotion
+      Promotion::Engine.create_promotion_instance(@customer, @customer.ongoing_application, promotion, coupon_code)
+    else
+      "Coupon code was not found."
+    end
+  end
+end

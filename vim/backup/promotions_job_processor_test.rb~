@@ -1,0 +1,110 @@
+require 'test_helper'
+
+describe PromotionsJobProcessor do
+  before do LoanTask.delete_all
+    PromotionInstance.delete_all
+    Note.delete_all
+    @not_promoted_instance = FactoryGirl.create(:promotion_instance)
+    @zero_day_instance = FactoryGirl.create(:promotion_instance, :with_paid_loan)
+    @promotable_instance = FactoryGirl.create(:promotion_instance, :with_paid_and_aged_loan)
+    @applied_promotable_instance = FactoryGirl.create(:promotion_instance, :with_paid_and_aged_loan, :applied)
+    @paid_off_instance = FactoryGirl.create(:promotion_instance, :with_paid_off_loan)
+
+    @almost_paid_off_instance = FactoryGirl.create(:promotion_instance, :almost_paid_off)
+    @almost_paid_off_instance_2 = FactoryGirl.create(:promotion_instance, :almost_paid_off_2)
+  end
+
+  describe '#process_promotions!' do
+    it 'should generate approve_promotion jobs for associated promotions' do
+      [@not_promoted_instance.id, @zero_day_instance.id, @promotable_instance.id, @paid_off_instance.id, @almost_paid_off_instance.id, @almost_paid_off_instance_2.id].each do |id|
+        PromotionsJobProcessor.expects(:create).with(id: id, job: 'check_and_approve_promotion!')
+      end
+      PromotionsJobProcessor.expects(:create).with(id: @applied_promotable_instance.id, job: 'check_and_approve_promotion!').never
+      PromotionsJobProcessor.new(Time.now, {'job' => 'process_promotions!'}).perform
+    end
+  end
+
+  describe '#check_and_approve_promotion!' do
+    it 'creates a loan task when there is an applicable promotion' do
+      refute(@promotable_instance.loan_task.present?)
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal('add_credit_breakdown', @promotable_instance.promotable.reload.loan_tasks.last.type)
+    end
+
+    it 'creates a loan task that belongs to the promotable' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal(@promotable_instance.reload.loan_task.loan, @promotable_instance.promotable)
+    end
+
+    it 'creates a loan task that is completed' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal('completed', @promotable_instance.reload.loan_task.status)
+    end
+
+
+    it 'creates a loan task for the proper amount' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal(@promotable_instance.promotion.rule_amount*100, @promotable_instance.reload.promotable.payment_transactions.where(debit_account: 'credit_expense').last.amount_cents)
+    end
+
+    it 'does not create a loan task on a paid off loan' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @paid_off_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      refute(@paid_off_instance.loan_task.present?)
+    end
+
+    it 'does not create a loan task when there are no applicable promotions' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @not_promoted_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      refute(@paid_off_instance.loan_task.present?)
+    end
+
+    it 'updates Promotion Instance status when there is an applicable promotion' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal('applied', @promotable_instance.reload.status)
+    end
+
+    it 'keeps Promotion Instance status at associated when promotion has insufficient payments' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @not_promoted_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal('associated', @not_promoted_instance.status)
+    end
+
+    it 'keeps Promotion Instance status at associated when promotion is too early' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @zero_day_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert_equal('associated', @zero_day_instance.status)
+    end
+
+    it 'makes a loan note when the Promotion Instance is processed successfully' do
+      refute(@promotable_instance.promotable.notes.present?)
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      binding.pry
+      assert(@promotable_instance.promotable.notes.present?)
+    end
+
+    it 'does not make a loan note when there are insufficient payments' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @not_promoted_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      refute(@promotable_instance.promotable.notes.present?)
+    end
+
+    it 'does not make a loan note when the promotion is too early' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @zero_day_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      refute(@promotable_instance.promotable.notes.present?)
+    end
+
+    it 'pays off the loan if the discount is enough' do
+      refute(@almost_paid_off_instance.promotable.paid_off?)
+      PromotionsJobProcessor.new(Time.now, {'id' => @almost_paid_off_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert(@almost_paid_off_instance.promotable.reload.paid_off?)
+    end
+
+    it 'pays off the loan if the discount is more than enough' do
+      refute(@almost_paid_off_instance_2.promotable.paid_off?)
+      PromotionsJobProcessor.new(Time.now, {'id' => @almost_paid_off_instance_2.id, 'job' => 'check_and_approve_promotion!'}).perform
+      assert(@almost_paid_off_instance_2.promotable.reload.paid_off?)
+    end
+
+    it 'does not pay off the loan if this discount is not enough' do
+      PromotionsJobProcessor.new(Time.now, {'id' => @promotable_instance.id, 'job' => 'check_and_approve_promotion!'}).perform
+      refute(@promotable_instance.promotable.reload.paid_off?)
+    end
+
+  end
+end

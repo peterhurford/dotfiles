@@ -1,0 +1,205 @@
+require 'test_helper'
+
+class Api::CustomerApplicationsControllerTest < ActionController::TestCase
+
+  describe Api::CustomerApplicationsController do
+
+    before do
+      CreditDecision.any_instance.stubs(:maximum_borrow_amount).returns(10000)
+      CreditDecision.any_instance.stubs(:minimum_borrow_amount).returns(1000)
+    end
+
+    describe "GET product_details" do
+      describe "Loans" do
+        before(:each) do
+          @product = Loan.make(:applied)
+          @product.amount = 5000
+          @product.save
+          @customer = @product.customer
+
+          @product.stubs(:typical_payment).returns(700.00)
+          @product.stubs(:available_terms).returns([
+            { months: 12, monthly_payment: 100.00},
+            { months: 24, monthly_payment: 200.00}
+          ])
+
+          @customer.stubs(:active_product).returns(@product)
+
+          sign_in @customer
+          FrontendController.any_instance.stubs(:current_customer).returns(@customer)
+        end
+
+        it "should get a loan's product details (available_term) and details" do
+          get "product_details"
+
+          assert_response :success
+
+          expected_response =  {
+            "amount_cents"=>500000,
+            "apr"=>0.6478,
+            "monthly_payment"=>700.00,
+            "term"=>12,
+            "maximum_monthly_payment"=>900.0,
+            "minimum_monthly_payment"=>400.0,
+            "minimum_borrow_amount"=>1000,
+            "maximum_borrow_amount"=>10000,
+            "available_terms"=>[
+              {"months"=>12, "monthly_payment"=>100.0},
+              {"months"=>24, "monthly_payment"=>200.0}
+            ]
+          }
+
+          assert_equal expected_response, JSON.parse(@response.body)
+
+          @product.reload
+          assert_equal 5000.00, @product.amount.to_f
+          assert_equal 12, @product.term
+        end
+      end
+
+      describe "Credit Lines" do
+        before(:each) do
+          @product = FactoryGirl.create(:credit_line)
+          @product.credit_limit = 5000
+          @product.save
+          @customer = @product.customer
+
+          @customer.stubs(:active_product).returns(@product)
+
+          sign_in @customer
+          FrontendController.any_instance.stubs(:current_customer).returns(@customer)
+        end
+
+        it "should get a credit line's product details" do
+          get "product_details"
+
+          assert_response :success
+
+          expected_response =  {
+            "minimum_borrow_amount"=>1000,
+            "maximum_borrow_amount"=>8000,
+            "interest_rate"=>"0.65",
+            "credit_limit_cents"=>500000,
+            "draw_fee_percentage"=>0,
+            "period_fee_cents"=>0,
+            "first_draw_amount_cents"=>400000
+          }
+
+          assert_equal expected_response, JSON.parse(@response.body)
+
+          @product.reload
+          assert_equal 5000.00, @product.credit_limit.to_f
+          assert_equal 4000.00, @product.draws.first.amount.to_f
+        end
+      end
+    end
+
+    describe "POST send_product_details" do
+      describe "Loans" do
+        before(:each) do
+          @product = Loan.make(:applied)
+          @product.amount = 5000
+          @product.save
+          @customer = @product.customer
+
+          @product.stubs(:typical_payment).returns(800.00)
+          @product.stubs(:available_terms).returns([
+            { months: 12, monthly_payment: 100.00},
+            { months: 24, monthly_payment: 200.00}
+          ])
+
+          @customer.stubs(:active_product).returns(@product)
+          sign_in @customer
+          FrontendController.any_instance.stubs(:current_customer).returns(@customer)
+        end
+
+        it "should update a loan with a change to the amount" do
+          get "product_details"
+          post "send_product_details", { borrow_amount: 6000, term: 12 }
+
+          assert_response :success
+
+          expected_response =  {
+            "amount_cents"=>600000,
+            "apr"=>0.6478,
+            "monthly_payment"=>800.00,
+            "term"=>12,
+            "maximum_monthly_payment"=>900.0,
+            "minimum_monthly_payment"=>400.0,
+            "minimum_borrow_amount"=>1000,
+            "maximum_borrow_amount"=>10000,
+            "available_terms"=>[
+              {"months"=>12, "monthly_payment"=>100.0},
+              {"months"=>24, "monthly_payment"=>200.0}
+            ]
+          }
+
+          assert_equal expected_response, JSON.parse(@response.body)
+
+          @product.reload
+          assert_equal 6000.00, @product.amount.to_f
+          assert_equal 12, @product.term
+        end
+
+        it "should update a loan with a change to the term" do
+          @customer.stubs(:manual_override_term).returns(24)
+
+          post "send_product_details", { borrow_amount: 5000, term: 24 }
+
+          assert_response :success
+
+          # short circuit on term change to make rates_terms page faster
+
+          expected_response =  {
+            "term"=>24
+          }
+
+          assert_equal expected_response, JSON.parse(@response.body)
+
+          @product.reload
+          assert_equal 5000.00, @product.amount.to_f
+          assert_equal 24, @product.term
+        end
+      end
+
+      describe "Credit Lines" do
+        before(:each) do
+          @product = FactoryGirl.create(:credit_line)
+          @product.credit_limit = 5000
+          @product.save
+          @customer = @product.customer
+
+          @customer.stubs(:active_product).returns(@product)
+
+          sign_in @customer
+          FrontendController.any_instance.stubs(:current_customer).returns(@customer)
+        end
+
+        it "should update a credit with a change to the credit_limit and first_draw_amount" do
+          assert_equal 5000.00, @product.credit_limit.to_f
+          assert_equal nil, @product.draws.first
+
+          post "send_product_details", { borrow_amount: 6000, first_draw_amount: 3000 }
+
+          assert_response :success
+
+          expected_response =  {
+            "minimum_borrow_amount"=>1000,
+            "maximum_borrow_amount"=>8000,
+            "interest_rate"=>"0.65",
+            "credit_limit_cents"=>600000,
+            "draw_fee_percentage"=>0,
+            "period_fee_cents"=>0,
+            "first_draw_amount_cents"=>300000
+          }
+
+          assert_equal expected_response, JSON.parse(@response.body)
+
+          @product.reload
+          assert_equal 6000.00, @product.credit_limit.to_f
+          assert_equal 3000.00, @product.draws.first.amount.to_f
+        end
+      end
+    end
+  end
+end
