@@ -9,6 +9,12 @@ sudo apt-get install zsh
 ## Install Oh-My-Zsh <https://github.com/robbyrussell/oh-my-zsh>
 wget https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh -O - | sh
 
+## Install Tmuxifier
+git clone https://github.com/jimeh/tmuxifier.git ~/.tmuxifier
+
+## Install Tmux
+sudo apt-get install tmux # or brew install tmux for Mac OSX
+
 ## Install Oh-My-Zsh Plugins
 cd ~/.oh-my-zsh/custom/plugins
 git clone https://github.com/peterhurford/git-aliases.zsh.git
