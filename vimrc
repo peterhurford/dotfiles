@@ -77,10 +77,6 @@ noremap <Leader>xx :bufdo bd<CR>:q!<CR>
 " ,ss creates a vim session (saves files for later opening with vim -S)
 noremap <Leader>ss :mksession!<CR>
 
-" B goes to the previous buffer and b goes to the next buffer.
-noremap B :bprev<CR>
-noremap b :bnext<CR>
-
 " v/V restores the old b/B
 noremap v b
 noremap V B

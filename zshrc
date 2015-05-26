@@ -1,13 +1,23 @@
 # path
-export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.3/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
+export PATH="/usr/local/php5/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.3/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
+alias findport="lsof -i TCP | grep LISTEN"
 execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }   # kills all processes that match passed string
-alias kona="rlwrap ~/dev/kona/k"
 title() { echo -ne "\033]0;"$*"\007" }
 tms() { tmuxifier load-session $1 }                     # Load tmuxifier sessions
 alias frig='$(thefuck $(fc -ln -1))'                    # TheFuck plugin <https://github.com/nvbn/thefuck>
+
+# Languages!
+kona() {
+  echo "Booting Kona REPL via rlwrap ~/dev/kona/k"
+  rlwrap ~/dev/kona/k
+}
+haskell() {
+  echo "Booting Haskell REPL via ghci"
+  ghci
+}
 
 # vim aliases
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
@@ -33,15 +43,19 @@ tag() {
 
 # Beeminder (https://github.com/lydgate/bmndr)
 alias bmndr="~/dev/staging/bmndr/bmndr"
-beeadd() {  # beeadd 1 fruits
-  bmndr $2 $1
-  sleep 2.5
+beelist() {
   clear
-  echo "Loading..."
-  sleep 1.5
-  bmndr refresh $2
-  clear
+  date
   bmndr
+}
+beeadd() {  # beeadd 1 fruits
+  bmndr $2 $1 $3
+  sleep 8
+  clear
+  bmndr refresh $2
+  echo "Loading..."
+  sleep 4
+  beelist
 }
 beeopen() {
   local baseurl="https://www.beeminder.com/peterhurford"
