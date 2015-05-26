@@ -1,7 +1,0 @@
-list(
-  data = list(
-    "Ordering by loan id" = function(before, after) {
-      stopifnot(length(before$data) < length(after$data))
-    }
-  )
-)
