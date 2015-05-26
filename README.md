@@ -52,4 +52,5 @@ ln -s ~/dev/dotfiles/tmux.conf ~/.tmux.conf
 rm ~/.vimrc
 ln -s ~/dev/dotfiles/vimrc ~/.vimrc
 rm ~/.zshrc
+touch ~/.secret_zshrc # A secret file to store your exported tokens.
 ln -s ~/dev/dotfiles/zshrc ~/.zshrc
