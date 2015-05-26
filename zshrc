@@ -87,9 +87,6 @@ sinatra() {
   bundle exec ruby app.rb
 }
 
-# Git Aliases
-alias git="hub"  # Use hub
-
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
 alias compare="gitit compare"
