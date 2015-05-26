@@ -25,6 +25,10 @@ git clone https://github.com/peterhurford/up.zsh.git
 git clone https://github.com/olivierverdier/zsh-git-prompt.git
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
 
+## Install Pathogen
+mkdir -p ~/.vim/autoload ~/.vim/bundle && \
+curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
+
 ## Install Vim Plugins
 cd ~/.vim/bundle
 git clone https://github.com/jcfaria/Vim-R-plugin.git
