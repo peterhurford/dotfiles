@@ -27,6 +27,7 @@ git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
 mv git-aliases.zsh git-aliases
 mv git-it-on.zsh git-it-on
 mv up.zsh up
+mv send.zsh send
 
 ## Install Pathogen
 mkdir -p ~/.vim/autoload ~/.vim/bundle && \
