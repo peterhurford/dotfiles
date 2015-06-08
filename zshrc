@@ -18,6 +18,10 @@ haskell() {
   echo "Booting Haskell REPL via ghci"
   ghci
 }
+clojure() {
+  echo "Booting Clojure REPL via lein repl"
+  lein repl
+}
 
 # vim aliases
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim

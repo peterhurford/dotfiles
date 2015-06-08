@@ -108,6 +108,12 @@ noremap K <nop>
 " Status line is file name, git branch, and whether the file has been modified
 set statusline=%F\ %{GitBranch()}\ %m
 
+" Rainbow parentheses
+au VimEnter * RainbowParenthesesToggle
+au Syntax * RainbowParenthesesLoadRound
+au Syntax * RainbowParenthesesLoadSquare
+au Syntax * RainbowParenthesesLoadBraces
+
 " Git-vim (,gs shows git status, ,gb shows git blame, and ,gd shows git diff -- without opening a new vim pane, thank you.)
 let g:git_no_map_default = 1
 noremap <Leader>gs :Git status<CR>

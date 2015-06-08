@@ -24,6 +24,15 @@ git clone https://github.com/robertzk/send.zsh.git
 git clone https://github.com/peterhurford/up.zsh.git
 git clone https://github.com/olivierverdier/zsh-git-prompt.git
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+mv send.zsh send
+mv up.zsh up
+mv git-it-on.zsh git-it-on
+mv git-aliases.zsh git-aliases
+
+## Install icdiff <http://www.jefftk.com/icdiff>
+curl -s https://raw.githubusercontent.com/jeffkaufman/icdiff/release-1.7.3/icdiff \
+  | sudo tee /usr/local/bin/icdiff > /dev/null \
+    && sudo chmod ugo+rx /usr/local/bin/icdiff
 
 ## Install Pathogen
 mkdir -p ~/.vim/autoload ~/.vim/bundle && \
