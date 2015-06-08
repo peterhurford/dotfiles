@@ -57,6 +57,7 @@ git clone https://github.com/derekwyatt/vim-scala.git
 git clone https://github.com/fweep/vim-zsh-path-completion.git
 
 ## Install all the dotfiles
+mkdir ~/dev
 cd ~/dev
 git clone https://github.com/peterhurford/dotfiles.git
 rm ~/.inputrc
