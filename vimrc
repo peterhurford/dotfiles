@@ -1,7 +1,17 @@
-syntax on
-
 set runtimepath^=~/.vim/bundle/ctrlp.vim                          "ctrlp plugin
 execute pathogen#infect()
+syntax on
+filetype plugin indent on                                         "Turn plugins on
+
+"Easymotion (f searches for letter, F does same, s/S gets normal f/F)
+let g:EasyMotion_do_mapping = 0   " Disable default mappings
+let g:EasyMotion_smartcase = 1    " Case insensitive
+nmap f <Plug>(easymotion-s)
+nmap F <Plug>(easymotion-s)
+nmap / <Plug>(easymotion-sn)
+omap / <Plug>(easymotion-sn)
+noremap s f
+noremap S F
 
 set nobackup                                                      "no backup files
 set nowritebackup                                                 "only in case you don't want a backup file while editing
@@ -15,9 +25,9 @@ set lazyredraw                                                    "Only redraw w
 set foldmethod=manual                                             "Turn on folding (use za to toggle a fold)
 set scrolloff=10                                                  "Keep 10 lines below cursor (scrolls earlier)
 set splitbelow splitright                                         "Splits appear below and to the right>
+set backspace=indent,eol,start                                    "Fix backspace"
 "startinsert                                                       "Start in insert mode (very useful for Mutt)
 2mat ErrorMsg '\%81v.'                                            "Highlight column 81 to enforce style guide
-filetype plugin indent on                                         "Turn plugins on
 
 " Map , to leader
 let mapleader=","
@@ -108,21 +118,12 @@ noremap K <nop>
 " Status line is file name, git branch, and whether the file has been modified
 set statusline=%F\ %{GitBranch()}\ %m
 
-" Rainbow parentheses
-au VimEnter * RainbowParenthesesToggle
-au Syntax * RainbowParenthesesLoadRound
-au Syntax * RainbowParenthesesLoadSquare
-au Syntax * RainbowParenthesesLoadBraces
-
 " Git-vim (,gs shows git status, ,gb shows git blame, and ,gd shows git diff -- without opening a new vim pane, thank you.)
 let g:git_no_map_default = 1
 noremap <Leader>gs :Git status<CR>
 noremap <Leader>gb :GitBlame<CR>
 noremap <Leader>gd :Git diff<CR>
 noremap <Leader>gl :Git log<CR>
-
-" Git-vim icdiff prototype
-noremap <Leader>gi :Git icdiff<CR>
 
 " :S msg uses Git Send Plugin
 let g:GitSendPrefix = 'S'
@@ -136,19 +137,6 @@ let vimrplugin_assign = 0
 
 "CTRL-P
 let g:ctrlp_map = '<C-X>'                                 "Make CTRL-P plugin use CTRL-X instead (faster)
-
-"Easymotion (f searches for letter, F does same, s/S gets normal f/F)
-let g:EasyMotion_do_mapping = 0   " Disable default mappings
-let g:EasyMotion_smartcase = 1    " Case insensitive
-nmap f <Plug>(easymotion-s)
-nmap F <Plug>(easymotion-s)
-nmap / <Plug>(easymotion-sn)
-omap / <Plug>(easymotion-sn)
-noremap s f
-noremap S F
-
-"Guest.vim (prototype)
-noremap <Leader>gg :mapclear<CR>:source ~/.guest-vimrc<CR>
 
 "Faster CTRL-P
 let g:ctrlp_user_command = 'ag %s -i --nocolor --nogroup --hidden
