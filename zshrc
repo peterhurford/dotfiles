@@ -1,5 +1,9 @@
 # path
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.4/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
+export GHC_DOT_APP="/Applications/ghc-7.10.1.app"   # Run GHCI
+if [ -d "$GHC_DOT_APP" ]; then
+   export PATH="${HOME}/.cabal/bin:${GHC_DOT_APP}/Contents/bin:${PATH}"
+fi
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -97,6 +101,7 @@ alias myrepos="gitit repo peterhurford"
 alias compare="gitit compare"
 alias commits="gitit commits"
 alias branch="gitit branch"
+alias mybranches="gitit branches mine"
 alias gistory="gitit history"
 alias prs="gitit pulls"
 alias myprs="gitit pulls author:peterhurford"
@@ -128,7 +133,7 @@ bindkey '\eh' run-help                              # When your cursor is over a
 plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh analytics-tactical)
 
 # Startup
-eval "$(tmuxifier init -)"                          # Run tmuxifier
+#eval "$(tmuxifier init -)"                         # Run tmuxifier
 tmux                                                # Tmux
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
