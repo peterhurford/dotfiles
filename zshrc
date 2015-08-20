@@ -1,10 +1,11 @@
 # path
-export PATH="/usr/local/php5/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.3/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.4/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
 alias findport="lsof -i TCP | grep LISTEN"
-execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }   # kills all processes that match passed string
+execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }            # kills all processes that match passed string
+dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | xargs kill }      # kill all connections to a database
 title() { echo -ne "\033]0;"$*"\007" }
 tms() { tmuxifier load-session $1 }                     # Load tmuxifier sessions
 alias frig='$(thefuck $(fc -ln -1))'                    # TheFuck plugin <https://github.com/nvbn/thefuck>
