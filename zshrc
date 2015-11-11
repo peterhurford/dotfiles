@@ -141,6 +141,7 @@ source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
 source ~/.secret_zshrc                              # Source API tokens (shh secret)
 GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1                   # Automatically push branches when a new branch is created
 GIT_ALIASES_ICDIFF=1                                # Use icdiff instead of diff
+GIT_ALIASES_SHORTER_GIT_STATUS=1                    # Use prettier git status
 
 # Theme
 PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%}%*%{$reset_color%} $ '
