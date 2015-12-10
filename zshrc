@@ -57,8 +57,16 @@ beelist() {
   date
   bmndr
 }
-beeadd() {  # beeadd 1 fruits
-  bmndr $2 $1 $3
+beeadd() {  # beeadd 1 fruits <comment>
+  if [ $2 == "smoothie" ]; then
+    bmndr fruits 1
+    bmndr creatine 0.5
+    bmndr flax 0.5
+    bmndr veggies 1
+    bmndr dairy 1
+  else
+    bmndr $2 $1 $3
+  fi
   sleep 8
   clear
   bmndr refresh $2
