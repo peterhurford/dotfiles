@@ -135,7 +135,7 @@ bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
 # Fix RVM
-[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm" ]
+[[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"
 
 # plugins
 plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh analytics-tactical)
@@ -168,8 +168,3 @@ DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack
 
 # added by travis gem
 [ -f /Users/peterhurford/.travis/travis.sh ] && source /Users/peterhurford/.travis/travis.sh
-
-COUNT=1
-counter() {
-  echo $((COUNT++))
-}
