@@ -1,5 +1,5 @@
 # path
-export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451/bin:/Users/peterhurford/.rvm/gems/ruby-2.0.0-p451@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.0.0-p451/bin:/usr/local/heroku/bin:/Users/peterhurford/bin:/Library/Java/JavaVirtualMachines:/Applications/Postgres.app/Contents/Versions/9.4/bin:/Users/peterhurford/.tmuxifier/bin:/Users/peterhurford/.rvm/bin"
+export PATH="bin:/Users/peterhurford/.rvm/gems/ruby-2.2.2/:/Applications/Postgres.app/Contents/Versions/9.4/bin:/Users/peterhurford/.rvm/gems/ruby-2.2.2@global/bin:/Users/peterhurford/.rvm/rubies/ruby-2.2.2/bin:/Users/peterhurford/.Renv/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/usr/texbin:/opt/local/bin:/opt/local/sbin:/usr/local/heroku/bin"
 export GHC_DOT_APP="/Applications/ghc-7.10.1.app"   # Run GHCI
 if [ -d "$GHC_DOT_APP" ]; then
    export PATH="${HOME}/.cabal/bin:${GHC_DOT_APP}/Contents/bin:${PATH}"
@@ -159,7 +159,7 @@ RPROMPT='$(git_super_status)'
 cdpath=(~/dev ~/dev/avant ~/dev/avant-basic)        # Source cdpath (autocomplete in these directories) (important to have this beneath source)
 enable_correction="true"                            # command autocorrection
 _comp_options+=(globdots)                           # Tab completion for dotfiles
-compdef _c vim                                      # Autocomplete for vim
+#compdef _c vim                                      # Autocomplete for vim
 setopt auto_cd                                      # turn on cd autocompletion
 unsetopt histverify                                 # auto-submit previous history
 unsetopt nomatch                                    # make rake tasks work again
