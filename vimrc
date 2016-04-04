@@ -16,7 +16,9 @@ noremap S F
 set nobackup                                                      "no backup files
 set nowritebackup                                                 "only in case you don't want a backup file while editing
 set noswapfile                                                    "no swap files
-set tabstop=2 shiftwidth=2 expandtab smartindent                  "smart tabbing
+set tabstop=2 shiftwidth=2                                        "set tab size to 2
+set expandtab                                                     "replace tab with spaces
+set smartindent                                                   "keep your indentation level when you go to the next line
 set number                                                        "Line numbers on
 set autoread                                                      "Updates vim file when changed from outside
 set magic                                                         "Allows pattern matching with special characters
@@ -26,7 +28,6 @@ set foldmethod=manual                                             "Turn on foldi
 set scrolloff=10                                                  "Keep 10 lines below cursor (scrolls earlier)
 set splitbelow splitright                                         "Splits appear below and to the right>
 set backspace=indent,eol,start                                    "Fix backspace"
-"startinsert                                                       "Start in insert mode (very useful for Mutt)
 2mat ErrorMsg '\%81v.'                                            "Highlight column 81 to enforce style guide
 
 " Map , to leader
@@ -128,12 +129,8 @@ noremap <Leader>gl :Git log<CR>
 " :S msg uses Git Send Plugin
 let g:GitSendPrefix = 'S'
 
-"Vim R (Start R with ,r and send lines with space)
-map <Leader>r <Plug>RStart 
-vmap <Space> <Plug>RDSendSelection 
-nmap <Space> <Plug>RDSendLine
-nmap <Leader>rr <Plug>RESendFile
-let vimrplugin_assign = 0
+autocmd FileType rexx set ft=r                    " Avoid confusing r files as rexx files.
+autocmd FileType r setlocal commentstring=#\ %s   " Give the proper commentary file for .R
 
 "CTRL-P
 let g:ctrlp_map = '<C-X>'                                 "Make CTRL-P plugin use CTRL-X instead (faster)
@@ -173,6 +170,18 @@ endif
 nnoremap K :grep! "\b<C-R><C-W>\b"<CR>:cw<CR>
 
 " bind \ (backward slash) to grep shortcut
-command -nargs=+ -complete=file -bar Ag silent! grep! <args>|cwindow|redraw!
+" command -nargs=+ -complete=file -bar Ag silent! grep! <args>|cwindow|redraw!
 
 nnoremap \ :Ag<SPACE>
+
+
+"Abbreviations
+:ab afn <- function
+:ab mn( int main(int argc, char** argv) {<CR>
+:ab fnn function
+:ab mainn int main(int argc, char **argv) {
+:ab TR TRUE
+:ab FA FALSE
+:ab iden identical
+:ab subt substitute
+:ab tt( test_that(}
