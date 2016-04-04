@@ -140,6 +140,10 @@ bindkey '\eh' run-help                              # When your cursor is over a
 # plugins
 plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh analytics-tactical)
 
+# Overwrite R to not save
+alias 'r'='R --no-restore'
+alias 'R'='R --no-restore'
+
 # Startup
 #eval "$(tmuxifier init -)"                         # Run tmuxifier
 tmux                                                # Tmux
