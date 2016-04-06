@@ -75,7 +75,7 @@ beeadd() {  # beeadd 1 fruits <comment>
   beelist
 }
 beeopen() {
-  local baseurl="https://www.beeminder.com/peterhurford"
+  local baseurl="https://www.beeminder.com/dashboard"
   if [[ $# == 0 ]]; then; open $baseurl
   else; open "$baseurl/goals/$1"
   fi
