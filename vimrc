@@ -60,7 +60,7 @@ nnoremap <C-D> :q<CR>
 nnoremap <C-D><C-D> :q!<CR>
 
 " cc is old s (substitute character)
-" cb is cw that goes to the beginning of the word 
+" cb is cw that goes to the beginning of the word
 nnoremap cc s
 nnoremap cb bcw
 
@@ -101,13 +101,15 @@ nnoremap <Leader>p :set paste! paste?<CR>
 " ,v resources ~/.vimrc
 nnoremap <Leader>v :source ~/.vimrc<CR>
 
-" ,e reloads the file
-nnoremap <Leader>e :e
-
 " ,e opens editor (set to current directory)
 autocmd BufEnter * lcd %:p:h                              " e . opens in current directory
-let g:netrw_browse_split=0                                "Vim explore always opens in current tab on enter
 nnoremap <Leader>e :e .<CR>
+
+" e bookmarks
+nnoremap <Leader>ea :e ~/dev/avant<CR>
+nnoremap <Leader>ed :e ~/dev<CR>
+nnoremap <Leader>ep :e ~/dev/personal<CR>
+nnoremap <Leader>eaa :e ~/dev/avant-analytics<CR>
 
 " ,? toggles laststatus (on by default)
 set laststatus=2

@@ -28,9 +28,7 @@ clojure() {
   lein repl
 }
 
-# vim aliases
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
-alias vs='vim -s'                                       # Open vim session
 
 # Toggl (https://github.com/drobertadams/toggl-cli)
 alias toggl="~/dev/toggl-cli/toggl.py"
@@ -75,9 +73,9 @@ beeadd() {  # beeadd 1 fruits <comment>
   beelist
 }
 beeopen() {
-  local baseurl="https://www.beeminder.com/dashboard"
-  if [[ $# == 0 ]]; then; open $baseurl
-  else; open "$baseurl/goals/$1"
+  local baseurl="https://www.beeminder.com"
+  if [[ $# == 0 ]]; then; open "$baseurl/dashboard"
+  else; open "$baseurl/peterhurford/$1"
   fi
 }
 
