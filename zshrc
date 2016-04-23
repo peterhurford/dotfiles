@@ -144,7 +144,7 @@ alias 'R'='R --no-restore'
 
 # Startup
 #eval "$(tmuxifier init -)"                         # Run tmuxifier
-tmux                                                # Tmux
+if [ "$TMUX" = "" ]; then tmux; fi                  # Run tmux if not tmux
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
