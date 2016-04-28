@@ -65,20 +65,6 @@ nnoremap [ {
 " ,w toggles wrap
 noremap <Leader>w :set wrap! wrap?<CR>
 
-" ,- for horizontal split and ,\ for vertical split, both opening up the tree
-noremap <Leader>- :split<CR>
-noremap <Leader>\ :vsplit<CR>
-
-" ,t opens a new tab and  tt cycles through tabs (<number>tt moves to that tab number)
-noremap <Leader>t :tabnew<CR>
-noremap tt gt
-
-" ,xx closes all vim tabs
-noremap <Leader>xx :bufdo bd<CR>:q!<CR>
-
-" ,ss creates a vim session (saves files for later opening with vim -S)
-noremap <Leader>ss :mksession!<CR>
-
 " v/V restores the old b/B
 noremap v b
 noremap V B
@@ -92,15 +78,8 @@ nnoremap <Leader>p :set paste! paste?<CR>
 " ,v resources ~/.vimrc
 nnoremap <Leader>v :source ~/.vimrc<CR>
 
-" ,e opens editor (set to current directory)
-autocmd BufEnter * lcd %:p:h                              " e . opens in current directory
-nnoremap <Leader>e :e .<CR>
-
-" e bookmarks
-nnoremap <Leader>ea :e ~/dev/avant<CR>
-nnoremap <Leader>ed :e ~/dev<CR>
-nnoremap <Leader>ep :e ~/dev/personal<CR>
-nnoremap <Leader>eaa :e ~/dev/avant-analytics<CR>
+" Vimflow bookmarks
+let g:vimflow_bookmarks = {"a": "~/dev/avant", "d": "~/dev", "p": "~/dev/personal", "aa": "~/dev/avant-analytics"}
 
 " ,? toggles laststatus (on by default)
 set laststatus=2
@@ -163,11 +142,8 @@ if executable('ag')
   let g:ctrlp_use_caching = 0
 endif
 
-nnoremap K :grep! "\b<C-R><C-W>\b"<CR>:cw<CR>
 
 " bind \ (backward slash) to grep shortcut
-" command -nargs=+ -complete=file -bar Ag silent! grep! <args>|cwindow|redraw!
-
 nnoremap \ :Ag<SPACE>
 
 
