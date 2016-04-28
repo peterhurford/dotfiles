@@ -136,7 +136,7 @@ bindkey '\eh' run-help                              # When your cursor is over a
 [[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"
 
 # plugins
-plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh analytics-tactical)
+plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh textdiff)
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'
@@ -151,6 +151,7 @@ source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
 source ~/.secret_zshrc                              # Source API tokens (shh secret)
 GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1                   # Automatically push branches when a new branch is created
 GIT_ALIASES_ICDIFF=1                                # Use icdiff instead of diff
+TEXTDIFF_USES_ICDIFF=1
 GIT_ALIASES_SHORTER_GIT_STATUS=1                    # Use prettier git status
 
 # Theme
@@ -167,6 +168,3 @@ unsetopt histverify                                 # auto-submit previous histo
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
-
-# added by travis gem
-[ -f /Users/peterhurford/.travis/travis.sh ] && source /Users/peterhurford/.travis/travis.sh

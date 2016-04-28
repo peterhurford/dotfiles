@@ -3,16 +3,6 @@ execute pathogen#infect()
 syntax on
 filetype plugin indent on                                         "Turn plugins on
 
-"Easymotion (f searches for letter, F does same, s/S gets normal f/F)
-let g:EasyMotion_do_mapping = 0   " Disable default mappings
-let g:EasyMotion_smartcase = 1    " Case insensitive
-nmap f <Plug>(easymotion-s)
-nmap F <Plug>(easymotion-s)
-nmap / <Plug>(easymotion-sn)
-omap / <Plug>(easymotion-sn)
-noremap s f
-noremap S F
-
 set nobackup                                                      "no backup files
 set nowritebackup                                                 "only in case you don't want a backup file while editing
 set noswapfile                                                    "no swap files
@@ -28,6 +18,7 @@ set foldmethod=manual                                             "Turn on foldi
 set scrolloff=10                                                  "Keep 10 lines below cursor (scrolls earlier)
 set splitbelow splitright                                         "Splits appear below and to the right>
 set backspace=indent,eol,start                                    "Fix backspace"
+
 2mat ErrorMsg '\%81v.'                                            "Highlight column 81 to enforce style guide
 
 " Map , to leader
@@ -136,6 +127,9 @@ autocmd FileType r setlocal commentstring=#\ %s   " Give the proper commentary f
 
 "CTRL-P
 let g:ctrlp_map = '<C-X>'                                 "Make CTRL-P plugin use CTRL-X instead (faster)
+
+"Rooter
+let g:rooter_silent_chdir = 1
 
 "Easymotion (f searches for letter, F does same, s/S gets normal f/F)
 let g:EasyMotion_do_mapping = 0   " Disable default mappings
