@@ -11,7 +11,7 @@ alias findport="lsof -i TCP | grep LISTEN"
 execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }            # kills all processes that match passed string
 dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | xargs kill }      # kill all connections to a database
 title() { echo -ne "\033]0;"$*"\007" }
-tms() { tmuxifier load-session $1 }                     # Load tmuxifier sessions
+tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs -n 1 -I{} tmux kill-session -t {} }
 alias frig='$(thefuck $(fc -ln -1))'                    # TheFuck plugin <https://github.com/nvbn/thefuck>
 
 # Languages!
@@ -168,3 +168,9 @@ unsetopt histverify                                 # auto-submit previous histo
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
+
+PATH="/Users/peterhurford/perl5/bin${PATH:+:${PATH}}"; export PATH;
+PERL5LIB="/Users/peterhurford/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
+PERL_LOCAL_LIB_ROOT="/Users/peterhurford/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
+PERL_MB_OPT="--install_base \"/Users/peterhurford/perl5\""; export PERL_MB_OPT;
+PERL_MM_OPT="INSTALL_BASE=/Users/peterhurford/perl5"; export PERL_MM_OPT;
