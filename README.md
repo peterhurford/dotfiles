@@ -7,27 +7,24 @@ To install... **WARNING: WILL OVERWRITE CURRENT DOTFILES**
 sudo apt-get install zsh
 
 ## Install Oh-My-Zsh <https://github.com/robbyrussell/oh-my-zsh>
-wget https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh -O - | sh
-
-## Install Tmuxifier
-git clone https://github.com/jimeh/tmuxifier.git ~/.tmuxifier
+wget https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh -O - | sudo sh
 
 ## Install Tmux
 sudo apt-get install tmux # or brew install tmux for Mac OSX
 
 ## Install Oh-My-Zsh Plugins
 cd ~/.oh-my-zsh/custom/plugins
-git clone https://github.com/peterhurford/git-aliases.zsh.git
-git clone https://github.com/peterhurford/git-it-on.zsh.git
-git clone https://github.com/peterhurford/rrzsh.git
-git clone https://github.com/robertzk/send.zsh.git
-git clone https://github.com/peterhurford/up.zsh.git
-git clone https://github.com/olivierverdier/zsh-git-prompt.git
-git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
-mv send.zsh send
-mv up.zsh up
-mv git-it-on.zsh git-it-on
-mv git-aliases.zsh git-aliases
+sudo git clone https://github.com/peterhurford/git-aliases.zsh.git
+sudo git clone https://github.com/peterhurford/git-it-on.zsh.git
+sudo git clone https://github.com/peterhurford/rrzsh.git
+sudo git clone https://github.com/robertzk/send.zsh.git
+sudo git clone https://github.com/peterhurford/up.zsh.git
+sudo git clone https://github.com/olivierverdier/zsh-git-prompt.git
+sudo git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+sudo mv send.zsh send
+sudo mv up.zsh up
+sudo mv git-it-on.zsh git-it-on
+sudo mv git-aliases.zsh git-aliases
 
 ## Install icdiff <http://www.jefftk.com/icdiff>
 curl -s https://raw.githubusercontent.com/jeffkaufman/icdiff/release-1.7.3/icdiff \
@@ -40,12 +37,10 @@ curl -LSso ~/.vim/autoload/pathogen.vim https://tpo.pe/pathogen.vim
 
 ## Install Vim Plugins
 cd ~/.vim/bundle
-git clone https://github.com/jcfaria/Vim-R-plugin.git
 git clone https://github.com/corntrace/bufexplorer.git
 git clone https://github.com/kien/ctrlp.vim.git
 git clone https://github.com/motemen/git-vim.git
 git clone https://github.com/peterhurford/macroutils.vim.git
-git clone https://github.com/kien/rainbow_parentheses.vim.git
 git clone https://github.com/danro/rename.vim.git
 git clone https://github.com/peterhurford/send.vim.git
 git clone https://github.com/ervandew/supertab.git
@@ -60,6 +55,7 @@ git clone https://github.com/fatih/vim-go.git
 git clone https://github.com/digitaltoad/vim-jade.git
 git clone https://github.com/derekwyatt/vim-scala.git
 git clone https://github.com/fweep/vim-zsh-path-completion.git
+git clone https://github.com/peterhurford/vimflow
 
 ## Install all the dotfiles
 mkdir ~/dev
