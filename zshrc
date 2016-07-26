@@ -28,6 +28,13 @@ clojure() {
   lein repl
 }
 
+
+# Python
+export WORKON_HOME=~/.virtualenvs
+export PROJECT_HOME=$HOME/code
+source /usr/local/bin/virtualenvwrapper.sh
+
+
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
 
 # Toggl (https://github.com/drobertadams/toggl-cli)
@@ -168,9 +175,3 @@ unsetopt histverify                                 # auto-submit previous histo
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
-
-PATH="/Users/peterhurford/perl5/bin${PATH:+:${PATH}}"; export PATH;
-PERL5LIB="/Users/peterhurford/perl5/lib/perl5${PERL5LIB:+:${PERL5LIB}}"; export PERL5LIB;
-PERL_LOCAL_LIB_ROOT="/Users/peterhurford/perl5${PERL_LOCAL_LIB_ROOT:+:${PERL_LOCAL_LIB_ROOT}}"; export PERL_LOCAL_LIB_ROOT;
-PERL_MB_OPT="--install_base \"/Users/peterhurford/perl5\""; export PERL_MB_OPT;
-PERL_MM_OPT="INSTALL_BASE=/Users/peterhurford/perl5"; export PERL_MM_OPT;

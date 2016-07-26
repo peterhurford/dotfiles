@@ -7,6 +7,7 @@ set nobackup                                                      "no backup fil
 set nowritebackup                                                 "only in case you don't want a backup file while editing
 set noswapfile                                                    "no swap files
 set tabstop=2 shiftwidth=2                                        "set tab size to 2
+autocmd FileType python setlocal tabstop=4 shiftwidth=4 softtabstop=4   " Pythonic tabs
 set expandtab                                                     "replace tab with spaces
 set smartindent                                                   "keep your indentation level when you go to the next line
 set number                                                        "Line numbers on
@@ -78,8 +79,11 @@ nnoremap <Leader>p :set paste! paste?<CR>
 " ,v resources ~/.vimrc
 nnoremap <Leader>v :source ~/.vimrc<CR>
 
+" ,f runs flake8
+autocmd FileType python nnoremap <Leader>F :call Flake8()<CR>
+
 " Vimflow bookmarks
-let g:vimflow_bookmarks = {"a": "~/dev/avant", "d": "~/dev", "p": "~/dev/personal", "aa": "~/dev/avant-analytics"}
+let g:vimflow_bookmarks = {"d": "~/dev"}
 
 " ,? toggles laststatus (on by default)
 set laststatus=2
