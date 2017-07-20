@@ -4,7 +4,7 @@ To install... **WARNING: WILL OVERWRITE CURRENT DOTFILES**
 
 ```
 ## Install Zsh <http://whaaat.com/content/update-shell-zsh-osx-unix>
-sudo apt-get install zsh
+sudo apt-get install zsh  # Already installed on Mac OSX
 
 ## Install Oh-My-Zsh <https://github.com/robbyrussell/oh-my-zsh>
 wget https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh -O - | sudo sh
@@ -70,3 +70,7 @@ ln -s ~/dev/dotfiles/vimrc ~/.vimrc
 rm ~/.zshrc
 touch ~/.secret_zshrc # A secret file to store your exported tokens.
 ln -s ~/dev/dotfiles/zshrc ~/.zshrc
+
+## Initialize
+tmux
+zsh
