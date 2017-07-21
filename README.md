@@ -70,6 +70,8 @@ ln -s ~/dev/dotfiles/vimrc ~/.vimrc
 rm ~/.zshrc
 touch ~/.secret_zshrc # A secret file to store your exported tokens.
 ln -s ~/dev/dotfiles/zshrc ~/.zshrc
+rm ~/.bash_profile
+ln -s ~/dev/dotfiles/bash_profile ~/.bash_profile
 
 ## Initialize
 tmux
