@@ -1,5 +1,5 @@
 # path
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin"
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
