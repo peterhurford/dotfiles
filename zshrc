@@ -89,7 +89,7 @@ PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%
 RPROMPT='$(git_super_status)'
 
 # Oh-my-zsh Settings
-cdpath=(~/dev ~/dev/avant ~/dev/avant-basic)        # Source cdpath (autocomplete in these directories) (important to have this beneath source)
+cdpath=(~/dev)                                      # Source cdpath (autocomplete in these directories) (important to have this beneath source)
 enable_correction="true"                            # command autocorrection
 _comp_options+=(globdots)                           # Tab completion for dotfiles
 setopt auto_cd                                      # turn on cd autocompletion
