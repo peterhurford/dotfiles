@@ -11,6 +11,7 @@ tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs
 # Python
 export WORKON_HOME=~/.virtualenvs
 source /usr/local/bin/virtualenvwrapper.sh
+export MPLBACKEND="TkAgg" # for matplotlib
 
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
 
@@ -65,7 +66,7 @@ bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
 # plugins
-plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh textdiff)
+plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on hipchat rrzsh textdiff shellplyr)
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'

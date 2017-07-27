@@ -19,6 +19,7 @@ sudo git clone https://github.com/peterhurford/git-it-on.zsh.git
 sudo git clone https://github.com/peterhurford/rrzsh.git
 sudo git clone https://github.com/robertzk/send.zsh.git
 sudo git clone https://github.com/peterhurford/up.zsh.git
+sudo git clone https://github.com/peterhurford/shellplyr.git
 sudo git clone https://github.com/olivierverdier/zsh-git-prompt.git
 sudo git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
 sudo mv send.zsh send
