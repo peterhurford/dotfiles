@@ -1,5 +1,7 @@
 # path
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
+export PYENV_ROOT="/Users/peter.hurford/.pyenv"
+export PATH="$PYENV_ROOT/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
+eval "$(pyenv init -)"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -7,12 +9,6 @@ alias findport="lsof -i TCP | grep LISTEN"
 execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }            # kills all processes that match passed string
 dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | xargs kill }      # kill all connections to a database
 tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs -n 1 -I{} tmux kill-session -t {} }
-
-# Python
-export WORKON_HOME=~/.virtualenvs
-source /usr/local/bin/virtualenvwrapper.sh
-export MPLBACKEND="TkAgg" # for matplotlib
-
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
 
 # moving aliases
@@ -97,3 +93,8 @@ unsetopt histverify                                 # auto-submit previous histo
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
+
+# Python
+source /usr/local/bin/virtualenvwrapper.sh
+export WORKON_HOME=~/.virtualenvs
+export MPLBACKEND="TkAgg" # for matplotlib
