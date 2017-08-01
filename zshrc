@@ -1,5 +1,8 @@
 # path
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
+export WORKON_HOME=~/.virtualenvs
+export PYENV_ROOT="/Users/peter.hurford/.pyenv"
+export PATH="$PYENV_ROOT/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
+eval "$(pyenv init -)"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -9,7 +12,6 @@ dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | 
 tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs -n 1 -I{} tmux kill-session -t {} }
 
 # Python
-export WORKON_HOME=~/.virtualenvs
 source /usr/local/bin/virtualenvwrapper.sh
 export MPLBACKEND="TkAgg" # for matplotlib
 
