@@ -20,7 +20,7 @@ set scrolloff=10                                                  "Keep 10 lines
 set splitbelow splitright                                         "Splits appear below and to the right>
 set backspace=indent,eol,start                                    "Fix backspace"
 
-2mat ErrorMsg '\%81v.'                                            "Highlight column 81 to enforce style guide
+2mat ErrorMsg '\%101v.'                                           "Highlight column 101 to enforce style guide
 
 " Map , to leader
 let mapleader=","
