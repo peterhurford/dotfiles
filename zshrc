@@ -1,6 +1,6 @@
 # path
 export PYENV_ROOT="/Users/peter.hurford/.pyenv"
-export PATH="$PYENV_ROOT/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin"
+export PATH="$PYENV_ROOT/shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin:/usr/local/texlive/2017/bin/x86_64-darwin"
 eval "$(pyenv init -)"
 
 # general aliases
@@ -97,4 +97,3 @@ DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack
 # Python
 source /usr/local/bin/virtualenvwrapper.sh
 export WORKON_HOME=~/.virtualenvs
-export MPLBACKEND="TkAgg" # for matplotlib
