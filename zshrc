@@ -75,10 +75,11 @@ export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
 source ~/.secret_zshrc                              # Source API tokens (shh secret)
-GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1                   # Automatically push branches when a new branch is created
-GIT_ALIASES_ICDIFF=1                                # Use icdiff instead of diff
-TEXTDIFF_USES_ICDIFF=1
-GIT_ALIASES_SHORTER_GIT_STATUS=1                    # Use prettier git status
+export GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1            # Automatically push branches when a new branch is created
+export GIT_ALIASES_ICDIFF=1                         # Use icdiff instead of diff
+export TEXTDIFF_USES_ICDIFF=1
+export GIT_ALIASES_SHORTER_GIT_STATUS=1             # Use prettier git status
+export NOT_CRAN="true"                              # For R testthat -- we are not CRAN
 
 # Theme
 PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%}%*%{$reset_color%} $ '
