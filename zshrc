@@ -1,5 +1,5 @@
 # path
-export PATH="shims:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/git/bin:/opt/local/bin:/opt/local/sbin:/Applications/Postgres.app/Contents/Versions/9.6/bin:/usr/local/texlive/2017/bin/x86_64-darwin:/usr/local/opt/texinfo/bin:/Library/TeX/texbin"
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/Applications/Postgres.app/Contents/Versions/9.6/bin:/usr/local/texlive/2017/bin/x86_64-darwin:/usr/local/opt/texinfo/bin:/Library/TeX/texbin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -96,18 +96,3 @@ DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack
 # Python
 source /usr/local/bin/virtualenvwrapper.sh
 export WORKON_HOME=~/.virtualenvs
-
-if [ -f /Users/peter.hurford/.ws/ws.sh ]; then
-    source /Users/peter.hurford/.ws/ws.sh
-fi
-
-
-if [ -f /Users/peter.hurford/.ws/ws.sh ]; then
-    source /Users/peter.hurford/.ws/ws.sh
-fi
-
-
-if [ -f /Users/peter.hurford/.ws/ws.sh ]; then
-    source /Users/peter.hurford/.ws/ws.sh
-fi
-
