@@ -87,13 +87,27 @@ RPROMPT='$(git_super_status)'
 cdpath=(~/dev)                                      # Source cdpath (autocomplete in these directories) (important to have this beneath source)
 enable_correction="true"                            # command autocorrection
 _comp_options+=(globdots)                           # Tab completion for dotfiles
-setopt auto_cd                                      # turn on cd autocompletion
 unsetopt histverify                                 # auto-submit previous history
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
-autoload -U compinit
-compinit
+autoload -U promptinit && promptinit                # load autocomplete
+autoload -U compinit compdef && compinit
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=0162'
+setopt autocd                                       # turn on cd autocompletion
+setopt autopushd pushdminus pushdsilent             # stuff with pushd
+setopt pushdtohome pushdignoredups
+setopt extendedglob                                 # Do not require a leading '.' in a filename to be matched explicitly
+setopt globdots
+setopt shwordsplit                                  # Causes field splitting to be performed on unquoted parameter expansions
+setopt automenu                                     # Automatically use menu completion after the second consecutive request for completion
+setopt cdablevars                                   # If the argument to a cd command (or an implied cd with the AUTO_CD option set)
+                                                    # is not a directory, and does not begin with a slash, try to expand the
+                                                    # expression as if it were preceded by a '~'
+setopt listpacked                                   # Try to make the completion list smaller (occupying less lines) by printing the matches in columns with different widths
+setopt alwaystoend                                  # If a completion is performed with the cursor within a word, and a full completion is inserted, the cursor is moved to the end of the word
+setopt correct                                      # Try to correct the spelling of commands
+setopt rmstarsilent                                 # Disable annoying confirm
 
 # Python
 source /usr/local/bin/virtualenvwrapper.sh
