@@ -60,7 +60,7 @@ bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
 # plugins
-plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on rrzsh textdiff shellplyr zsh-autosuggesitons)
+plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on rrzsh textdiff shellplyr zsh-autosuggestions)
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'
