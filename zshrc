@@ -60,7 +60,7 @@ bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
 # plugins
-plugins=(autocomplete zsh-syntax-highlighting send up sudo git-aliases git-it-on rrzsh textdiff shellplyr)
+plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on rrzsh textdiff shellplyr)
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'
@@ -92,6 +92,8 @@ unsetopt histverify                                 # auto-submit previous histo
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
 DISABLE_AUTO_TITLE=true                             # stop letting zshell hijack the tmux window names
+autoload -U compinit
+compinit
 
 # Python
 source /usr/local/bin/virtualenvwrapper.sh
