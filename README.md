@@ -22,6 +22,7 @@ sudo git clone https://github.com/peterhurford/up.zsh.git
 sudo git clone https://github.com/peterhurford/shellplyr.git
 sudo git clone https://github.com/olivierverdier/zsh-git-prompt.git
 sudo git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+sudo git clone https://github.com/peterhurford/textdiff.zsh.git
 sudo mv send.zsh send
 sudo mv up.zsh up
 sudo mv git-it-on.zsh git-it-on
