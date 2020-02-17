@@ -25,6 +25,7 @@ sudo git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
 sudo git clone https://github.com/peterhurford/textdiff.zsh.git
 sudo mv send.zsh send
 sudo mv up.zsh up
+sudo mv textdiff.zsh textdiff
 sudo mv git-it-on.zsh git-it-on
 sudo mv git-aliases.zsh git-aliases
 
