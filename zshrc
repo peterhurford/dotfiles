@@ -84,9 +84,6 @@ PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%
 RPROMPT='$(git_super_status)'
 
 # Oh-my-zsh Settings
-cdpath=(~/dev)                                      # Source cdpath (autocomplete in these directories) (important to have this beneath source)
-enable_correction="true"                            # command autocorrection
-_comp_options+=(globdots)                           # Tab completion for dotfiles
 unsetopt histverify                                 # auto-submit previous history
 unsetopt nomatch                                    # make rake tasks work again
 unsetopt share_history                              # actually, sharing history between shells is more annoying than useful
@@ -95,6 +92,8 @@ autoload -U promptinit && promptinit                # load autocomplete
 autoload -U compinit compdef && compinit
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=0162'
 setopt autocd                                       # turn on cd autocompletion
+cdpath=(~/dev)                                      # Source cdpath (autocomplete in these directories) (important to have this beneath source)
+_comp_options+=(globdots)                           # Tab completion for dotfiles
 setopt autopushd pushdminus pushdsilent             # stuff with pushd
 setopt pushdtohome pushdignoredups
 setopt extendedglob                                 # Do not require a leading '.' in a filename to be matched explicitly
