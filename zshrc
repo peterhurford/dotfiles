@@ -109,5 +109,6 @@ setopt correct                                      # Try to correct the spellin
 setopt rmstarsilent                                 # Disable annoying confirm
 
 # Python
-source /usr/local/bin/virtualenvwrapper.sh
+export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
 export WORKON_HOME=~/.virtualenvs
+source /usr/local/bin/virtualenvwrapper.sh
