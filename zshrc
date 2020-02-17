@@ -80,7 +80,7 @@ export GIT_ALIASES_SHORTER_GIT_STATUS=1             # Use prettier git status
 export NOT_CRAN="true"                              # For R testthat -- we are not CRAN
 
 # Theme
-PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%}%*%{$reset_color%} $ '
+PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%}%*%{$reset_color%} $   '
 RPROMPT='$(git_super_status)'
 
 # Oh-my-zsh Settings
