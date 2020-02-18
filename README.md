@@ -12,6 +12,9 @@ wget https://raw.github.com/robbyrussell/oh-my-zsh/master/tools/install.sh -O - 
 ## Install Tmux
 sudo apt-get install tmux # or brew install tmux for Mac OSX
 
+## Install ag
+apt-get install silversearcher-ag # or brew install the_silver_searcher for Mac OSX
+
 ## Install Oh-My-Zsh Plugins
 cd ~/.oh-my-zsh/custom/plugins
 sudo git clone https://github.com/peterhurford/git-aliases.zsh.git
