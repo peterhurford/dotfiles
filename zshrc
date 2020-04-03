@@ -112,6 +112,5 @@ setopt rmstarsilent                                 # Disable annoying confirm
 export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
 export WORKON_HOME=~/.virtualenvs
 source /usr/local/bin/virtualenvwrapper.sh
-
-# direnv
-eval "$(direnv hook zsh)"
+eval "$(direnv hook zsh)" # direnv
+eval "$(pyenv init -)" # pyenv
