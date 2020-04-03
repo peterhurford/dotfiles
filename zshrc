@@ -1,5 +1,5 @@
 # path
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/Applications/Postgres.app/Contents/Versions/9.6/bin:/usr/local/texlive/2017/bin/x86_64-darwin:/usr/local/opt/texinfo/bin:/Library/TeX/texbin"
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/texlive/2017/bin/x86_64-darwin:/usr/local/opt/texinfo/bin:/Library/TeX/texbin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -112,3 +112,6 @@ setopt rmstarsilent                                 # Disable annoying confirm
 export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
 export WORKON_HOME=~/.virtualenvs
 source /usr/local/bin/virtualenvwrapper.sh
+
+# direnv
+eval "$(direnv hook zsh)"
