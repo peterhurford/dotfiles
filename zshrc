@@ -1,5 +1,5 @@
 # path
-export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2017/bin/x86_64-darwin:/usr/local/opt/texinfo/bin:/Library/TeX/texbin"
+export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2020basic/bin/x86_64-darwin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -67,8 +67,7 @@ alias 'r'='R --no-restore'
 alias 'R'='R --no-restore'
 
 # Startup
-#eval "$(tmuxifier init -)"                         # Run tmuxifier
-if [ "$TMUX" = "" ]; then tmux; fi                  # Run tmux if not tmux
+if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run tmux if not tmux
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
@@ -109,8 +108,11 @@ setopt correct                                      # Try to correct the spellin
 setopt rmstarsilent                                 # Disable annoying confirm
 
 # Python
-export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
-export WORKON_HOME=~/.virtualenvs
-source /usr/local/bin/virtualenvwrapper.sh
-eval "$(direnv hook zsh)" # direnv
-eval "$(pyenv init -)" # pyenv
+bootpython() {
+  export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
+  export WORKON_HOME=~/.virtualenvs
+  source /usr/local/bin/virtualenvwrapper.sh
+  eval "$(direnv hook zsh)" # direnv
+  eval "$(pyenv init -)" # pyenv
+  workon dev
+}
