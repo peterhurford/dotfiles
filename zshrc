@@ -113,7 +113,6 @@ bootpython() {
   export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
   export WORKON_HOME=~/.virtualenvs
   source /usr/local/bin/virtualenvwrapper.sh
-  eval "$(direnv hook zsh)" # direnv
   eval "$(pyenv init -)" # pyenv
   workon dev
 }
