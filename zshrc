@@ -19,19 +19,6 @@ x() {
   fi
 }
 
-# Rails Aliases
-alias mig="bundle exec rake db:migrate"
-alias rtest='bundle exec ruby -I"lib:test"'
-alias rc="bundle exec rails console"
-alias rs="rails server"
-alias bi="bundle install"
-
-# Sinatra Aliases
-sinatra() {
-  open "http://localhost:4567/"
-  bundle exec ruby app.rb
-}
-
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
 alias compare="gitit compare"
