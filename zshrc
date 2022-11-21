@@ -1,5 +1,5 @@
 # path
-export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2020basic/bin/x86_64-darwin"
+export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2022basic/bin/universal-darwin"
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
