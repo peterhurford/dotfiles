@@ -19,6 +19,15 @@ x() {
   fi
 }
 
+# Python aliases
+bootpython() {
+  export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
+  export WORKON_HOME=~/.virtualenvs
+  source /usr/local/bin/virtualenvwrapper.sh
+  eval "$(pyenv init -)" # pyenv
+  workon dev
+}
+
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
 alias compare="gitit compare"
@@ -94,12 +103,3 @@ setopt listpacked                                   # Try to make the completion
 setopt alwaystoend                                  # If a completion is performed with the cursor within a word, and a full completion is inserted, the cursor is moved to the end of the word
 setopt correct                                      # Try to correct the spelling of commands
 setopt rmstarsilent                                 # Disable annoying confirm
-
-# Python
-bootpython() {
-  export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
-  export WORKON_HOME=~/.virtualenvs
-  source /usr/local/bin/virtualenvwrapper.sh
-  eval "$(pyenv init -)" # pyenv
-  workon dev
-}
