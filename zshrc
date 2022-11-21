@@ -27,6 +27,10 @@ bootpython() {
   eval "$(pyenv init -)" # pyenv
   workon dev
 }
+jupe() {
+  bootpython
+  jupyter-lab
+}
 
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
