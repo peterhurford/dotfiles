@@ -31,6 +31,10 @@ jupe() {
   bootpython
   jupyter-lab
 }
+py() {
+  bootpython
+  python3
+}
 
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
