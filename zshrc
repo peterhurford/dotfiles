@@ -1,5 +1,6 @@
 # path
-export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2022basic/bin/universal-darwin"
+export PATH="/usr/local/opt/python/libexec/bin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2022basic/bin/universal-darwin"
+
 
 # general aliases
 alias rebash='source ~/.zshrc'                        # so meta
@@ -23,7 +24,7 @@ x() {
 bootpython() {
   export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
   export WORKON_HOME=~/.virtualenvs
-  source /usr/local/bin/virtualenvwrapper.sh
+  source /opt/homebrew/bin/virtualenvwrapper.sh
   eval "$(pyenv init -)" # pyenv
   workon dev
 }
@@ -50,8 +51,6 @@ alias ctrlp="gitit ctrlp"
 
 # Grep aliases
 alias -g G='| grep'
-alias -g P='| percol'
-agl() { ag $@ | percol }
 
 # Open everything in vim
 alias -s rb=vim r=vim R=vim bash_profile=vim vimrc=vim zshrc=vim html=vim coffee=vim js=vim css=vim scss=vim jade=vim hml=vim erb=vim zsh=vim markdown=vim inputrc=vim txt=vim config=vim vim=vim
@@ -64,7 +63,7 @@ bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
 # plugins
-plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on rrzsh textdiff shellplyr zsh-autosuggestions)
+plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on zsh-autosuggestions)
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'
