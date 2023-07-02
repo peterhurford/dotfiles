@@ -22,7 +22,7 @@ x() {
 
 # Python aliases
 bootpython() {
-  export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python3
+  export VIRTUALENVWRAPPER_PYTHON=/opt/homebrew/bin/python3
   export WORKON_HOME=~/.virtualenvs
   source /opt/homebrew/bin/virtualenvwrapper.sh
   eval "$(pyenv init -)" # pyenv
@@ -70,7 +70,6 @@ alias 'r'='R --no-restore'
 alias 'R'='R --no-restore'
 
 # Startup
-if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run tmux if not tmux
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
@@ -110,3 +109,7 @@ setopt listpacked                                   # Try to make the completion
 setopt alwaystoend                                  # If a completion is performed with the cursor within a word, and a full completion is inserted, the cursor is moved to the end of the word
 setopt correct                                      # Try to correct the spelling of commands
 setopt rmstarsilent                                 # Disable annoying confirm
+
+# Initialize
+eval "$(/opt/homebrew/bin/brew shellenv)"           # Initialize brew
+if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run tmux if not tmux
