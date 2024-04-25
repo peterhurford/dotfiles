@@ -1,5 +1,5 @@
 # path
-export PATH="/usr/local/opt/python/libexec/bin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/opt:/opt/X11/bin:/usr/local/texlive/2022basic/bin/universal-darwin"
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/Users/peterhurford/.pyenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/texlive/2023/bin/universal-darwin"
 
 
 # general aliases
@@ -22,11 +22,10 @@ x() {
 
 # Python aliases
 bootpython() {
-  export VIRTUALENVWRAPPER_PYTHON=/opt/homebrew/bin/python3
-  export WORKON_HOME=~/.virtualenvs
-  source /opt/homebrew/bin/virtualenvwrapper.sh
-  eval "$(pyenv init -)" # pyenv
-  workon dev
+  eval "$(pyenv init --path)"
+  eval "$(pyenv virtualenv-init -)"
+  pyenv global 3.11.0
+  source ~/.pyenv/versions/dev/bin/activate
 }
 jupe() {
   bootpython
