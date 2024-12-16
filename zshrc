@@ -10,6 +10,12 @@ dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | 
 tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs -n 1 -I{} tmux kill-session -t {} }
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
 
+
+# paste aliases
+alias pbsort="pbpaste | awk '!seen[$0]++ && NF' | sort | pbcopy"
+alias pbsortr="pbpaste | awk '!seen[$0]++ && NF' | sort -R | pbcopy"
+
+
 # moving aliases
 x() {
   if [ $# == 0 ]; then ls -A;
@@ -19,6 +25,7 @@ x() {
     fi
   fi
 }
+
 
 # Python aliases
 bootpython() {
@@ -36,6 +43,7 @@ py() {
   python3
 }
 
+
 # Gitit Aliases
 alias myrepos="gitit repo peterhurford"
 alias compare="gitit compare"
@@ -48,11 +56,14 @@ alias myprs="gitit pulls author:peterhurford"
 alias gitgrep="gitit grep"
 alias ctrlp="gitit ctrlp"
 
+
 # Grep aliases
 alias -g G='| grep'
 
+
 # Open everything in vim
 alias -s rb=vim r=vim R=vim bash_profile=vim vimrc=vim zshrc=vim html=vim coffee=vim js=vim css=vim scss=vim jade=vim hml=vim erb=vim zsh=vim markdown=vim inputrc=vim txt=vim config=vim vim=vim
+
 
 # Bind Keys
 bindkey -v                                          # Vim mode for zshell
@@ -61,14 +72,17 @@ bindkey '^X' history-incremental-search-backward    # CTRL+R for zshell (mapped 
 bindkey '\C-o' accept-line-and-down-history         # Do repetitive commands
 bindkey '\eh' run-help                              # When your cursor is over a command, hit ESC+h to open its man page
 
+
 # plugins
 plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on zsh-autosuggestions)
+
 
 # Overwrite R to not save
 alias 'r'='R --no-restore'
 alias 'R'='R --no-restore'
 
-# Startup
+
+# Settings
 export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
@@ -79,10 +93,12 @@ export TEXTDIFF_USES_ICDIFF=1
 export GIT_ALIASES_SHORTER_GIT_STATUS=1             # Use prettier git status
 export NOT_CRAN="true"                              # For R testthat -- we are not CRAN
 
+
 # Theme
 source ~/.oh-my-zsh/custom/plugins/zsh-git-prompt/zshrc.sh
 PROMPT=' %{$fg_bold[green]%}${PWD/#$HOME/~}%{$reset_color%} ⌚ %{$fg_bold[red]%}%*%{$reset_color%} $   '
 RPROMPT='$(git_super_status)'
+
 
 # Oh-my-zsh Settings
 unsetopt histverify                                 # auto-submit previous history
@@ -108,6 +124,10 @@ setopt listpacked                                   # Try to make the completion
 setopt alwaystoend                                  # If a completion is performed with the cursor within a word, and a full completion is inserted, the cursor is moved to the end of the word
 setopt correct                                      # Try to correct the spelling of commands
 setopt rmstarsilent                                 # Disable annoying confirm
+
+export LDFLAGS="-L/usr/local/opt/libomp/lib"
+export CPPFLAGS="-I/usr/local/opt/libomp/include"
+
 
 # Initialize
 eval "$(/opt/homebrew/bin/brew shellenv)"           # Initialize brew
