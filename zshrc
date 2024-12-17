@@ -12,8 +12,8 @@ v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim 
 
 
 # paste aliases
-alias pbsort="pbpaste | awk '!seen[$0]++ && NF' | sort | pbcopy"
-alias pbsortr="pbpaste | awk '!seen[$0]++ && NF' | sort -R | pbcopy"
+pbsort() { pbpaste | awk '!seen[$0]++ && NF' | sort | pbcopy }
+pbsortr() { pbpaste | awk '!seen[$0]++ && NF' | sort -R | pbcopy }
 
 
 # moving aliases
