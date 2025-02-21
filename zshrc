@@ -78,7 +78,7 @@ plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on zsh-autosugg
 
 
 # prompts
-alias prompt="python3 ~/dev/prompts.py"
+alias prompt="python3 ~/dev/prompts/prompts.py"
 
 
 # Overwrite R to not save
