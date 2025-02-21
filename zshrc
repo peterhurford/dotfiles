@@ -77,6 +77,10 @@ bindkey '\eh' run-help                              # When your cursor is over a
 plugins=(zsh-syntax-highlighting send up sudo git-aliases git-it-on zsh-autosuggestions)
 
 
+# prompts
+alias prompt="python3 ~/dev/prompts.py"
+
+
 # Overwrite R to not save
 alias 'r'='R --no-restore'
 alias 'R'='R --no-restore'
