@@ -93,11 +93,6 @@ export TEXTDIFF_USES_ICDIFF=1
 export GIT_ALIASES_SHORTER_GIT_STATUS=1             # Use prettier git status
 export NOT_CRAN="true"                              # For R testthat -- we are not CRAN
 
-# TCL-TK
-export LDFLAGS="-L/usr/local/opt/tcl-tk/lib"
-export CPPFLAGS="-I/usr/local/opt/tcl-tk/include"
-export PATH="/usr/local/opt/tcl-tk/bin:$PATH"
-
 
 # Theme
 source ~/.oh-my-zsh/custom/plugins/zsh-git-prompt/zshrc.sh
