@@ -14,6 +14,7 @@ v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim 
 # paste aliases
 pbsort() { pbpaste | awk '!seen[$0]++ && NF' | sort | pbcopy }
 pbsortr() { pbpaste | awk '!seen[$0]++ && NF' | sort -R | pbcopy }
+lift() { cat $1 | pbcopy }
 
 
 # moving aliases
@@ -41,6 +42,10 @@ jupe() {
 py() {
   bootpython
   python3
+}
+c() {
+  bootpython
+  claude "$@"
 }
 
 
@@ -136,3 +141,8 @@ export CPPFLAGS="-I/usr/local/opt/libomp/include"
 # Initialize
 eval "$(/opt/homebrew/bin/brew shellenv)"           # Initialize brew
 if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run tmux if not tmux
+
+. "$HOME/.local/bin/env"
+
+# Claude Code local detection (if this env var is missing, Claude knows it's on mobile/cloud)
+export CLAUDE_LOCAL=1
