@@ -32,7 +32,7 @@ x() {
 bootpython() {
   eval "$(pyenv init --path)"
   eval "$(pyenv virtualenv-init -)"
-  pyenv global 3.11.0
+  pyenv global 3.14.0
   source ~/.pyenv/versions/dev/bin/activate
 }
 jupe() {
@@ -44,6 +44,7 @@ py() {
   python3
 }
 c() {
+  echo '⏳ Starting Claude (MCP servers warming up...)'
   bootpython
   claude "$@"
 }
