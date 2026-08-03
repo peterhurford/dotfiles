@@ -43,11 +43,15 @@ py() {
   bootpython
   python3
 }
+
+
+# Claude aliases
 c() {
   echo '⏳ Starting Claude (MCP servers warming up...)'
   bootpython
   claude "$@"
 }
+alias cf='c --model fable'
 
 
 # Gitit Aliases
