@@ -51,7 +51,7 @@ c() {
   bootpython
   claude "$@"
 }
-alias cf='c --model fable'
+alias cf='c --model fable --autocompact 200k'   # Fable is laptop-only, opt-in; 1M window, compact at 200k
 
 
 # Gitit Aliases
