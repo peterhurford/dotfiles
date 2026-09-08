@@ -101,6 +101,14 @@ export ZSH=$HOME/.oh-my-zsh                         # oh-my-zsh
 source $ZSH/oh-my-zsh.sh                            # Launch oh-my-zsh (important to have this beneath tmux)
 source $ZSH/custom/plugins/zsh-git-prompt/zshrc.sh  # Git Prompt
 source ~/.secret_zshrc                              # Source API tokens (shh secret)
+
+# Claude Code's Remote Control needs subscription (Max login) auth, and any exported
+# ANTHROPIC_API_KEY forces a session onto API-key auth instead. Keep the key reachable
+# under a second name — ~/dev/briefing falls back to it — and drop the standard name from
+# interactive shells. Unattended jobs source ~/.secret_zshrc directly, so they are unaffected.
+export BRIEFING_ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+unset ANTHROPIC_API_KEY
+
 export GIT_ALIASES_AUTOPUSH_NEW_BRANCH=1            # Automatically push branches when a new branch is created
 export GIT_ALIASES_ICDIFF=1                         # Use icdiff instead of diff
 export TEXTDIFF_USES_ICDIFF=1
