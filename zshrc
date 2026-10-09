@@ -153,7 +153,7 @@ export CPPFLAGS="-I/usr/local/opt/libomp/include"
 
 # Initialize
 eval "$(/opt/homebrew/bin/brew shellenv)"           # Initialize brew
-if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run tmux if not tmux
+if [ "$TMUX" = "" ]; then tmux -S ~/default new-session; fi                # Run tmux if not tmux
 
 . "$HOME/.local/bin/env"
 
