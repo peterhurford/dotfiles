@@ -79,7 +79,27 @@ touch ~/.secret_zshrc # A secret file to store your exported tokens.
 ln -s ~/dev/dotfiles/zshrc ~/.zshrc
 rm ~/.bash_profile
 ln -s ~/dev/dotfiles/bash_profile ~/.bash_profile
+mkdir -p ~/.claude
+ln -sf ~/dev/dotfiles/claude/statusline.sh ~/.claude/statusline.sh
+# then in ~/.claude/settings.json: "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}
 
 ## Initialize
 tmux
 zsh
+```
+
+## Claude Code status line
+
+`claude/statusline.sh` renders, for example:
+
+```
+headquarters · master · #a42e49 · Nudges.py judge refactor and ... · O5.5 · 113k/1M · 7d 10%/23% · -COMMIT-
+```
+
+Directory (`⑂` prefix in a linked worktree), branch, session-id prefix, session title, model (initial + version: O5.5, S5.5, H5.5, F5.1), context in use over the window (`⚠` at 150k+), and weekly usage over the share of the week elapsed (`⚠` when ahead). It ends with at most one marker:
+
+- `-AWAIT-` a background shell or agent this session launched is still running
+- `-COMMIT-` uncommitted files
+- `-PUSH-` commits not yet pushed to the upstream
+
+Needs `jq`.
