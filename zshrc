@@ -159,3 +159,6 @@ if [ "$TMUX" = "" ]; then tmux -S default new-session; fi                  # Run
 
 # Claude Code local detection (if this env var is missing, Claude knows it's on mobile/cloud)
 export CLAUDE_LOCAL=1
+
+# Ctrl+G in Claude Code opens the prompt here; VISUAL||EDITOR is what it reads.
+export EDITOR="vim"
