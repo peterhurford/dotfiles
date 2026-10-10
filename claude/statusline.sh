@@ -6,9 +6,9 @@
 #
 #   ⑂        this is a linked worktree, not the main checkout
 #   branch   which branch it is on
-#   #abc123  the session-id prefix, which is what ListAgents shows as [ref]
-#            in other sessions -- so this is the key that maps "ilion-c3"
-#            in someone else's roster to a window on your screen
+#   #abc123  the Claude Code session-id prefix: the name of this session's
+#            claims file in .state/sync_claims/ and of its transcript. It is
+#            NOT the [ref] that ListAgents shows
 #   title    the session's own name, the fastest way to tell them apart
 #   O5.5     the model, initial + version (F5.1, S5.5, H5.5)
 #   87k/1M   how deep the session is: the context the NEXT request will
@@ -19,7 +19,7 @@
 #   -COMMIT- the checkout has uncommitted files (blank when clean or -AWAIT-)
 #   -PUSH-   no -COMMIT- or -AWAIT-, but commits sit ahead of the upstream
 #   -AWAIT-  whether a background shell or agent this session
-#            launched is still running (a launch ID in the transcript with no
+#            launched or resumed is still running (a launch ID in the transcript with no
 #            task-notification status for it yet; the payload has no task field).
 #
 # The peer names themselves (ilion-c3, ilion-54) are assigned by the peer
@@ -88,13 +88,21 @@ tasks=""
 tp=$(field '.transcript_path' 'transcript_path')
 if [ -n "$tp" ] && [ -r "$tp" ]; then
   # Structured fields only: quoted text in a tool result must not count.
-  running=$(grep -E 'backgroundTaskId|async_launched|task-notification' "$tp" 2>/dev/null | jq -rs '
-    ([.[] | .toolUseResult? | objects
-      | (.backgroundTaskId // (select(.status == "async_launched") | .agentId)) // empty] | unique) as $l
-    | ([.[] | select(.origin.kind? == "task-notification" or .type == "queue-operation"
-          or .type == "attachment") | tostring
-      | scan("<task-id>([^<\\\\]+)</task-id>")[0]] | unique) as $e
-    | $l - $e | length' 2>/dev/null)
+  # Replayed in order: a launch or a SendMessage resume opens an ID, its
+  # task-notification closes it, so an agent resumed after it finished counts again.
+  # $open must always bind (null when the record launches nothing): a reduce step
+  # that yields no output is skipped, which would drop every closing record.
+  running=$(grep -E 'backgroundTaskId|async_launched|resumedAgentId|task-notification' "$tp" 2>/dev/null | jq -rs '
+    reduce .[] as $r ({};
+      ([$r.toolUseResult? | objects
+        | (.backgroundTaskId // (select(.status == "async_launched") | .agentId)
+           // .resumedAgentId) // empty][0]) as $open
+      | if $open then .[$open] = 1 else . end
+      | if ($r | (.origin.kind? == "task-notification" or .type == "queue-operation"
+                  or .type == "attachment"))
+        then reduce ($r | tostring | scan("<task-id>([^<\\\\]+)</task-id>")[0]) as $c (.; .[$c] = 0)
+        else . end)
+    | [.[] | select(. == 1)] | length' 2>/dev/null)
   [ "${running:-0}" -gt 0 ] && tasks=" · -AWAIT-"
 fi
 depth="${depth}${tasks}"
