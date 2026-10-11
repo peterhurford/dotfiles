@@ -57,14 +57,17 @@ fi
 
 title=$(field '.session_name' 'session_name')
 
-# tmux window name: `@a4 #22f2 topic`, the session's name as
-# token_spend.py --session-label gives it, plus the title's first words.
+# tmux window name: `Topic (@a4 #22f2)`, the title's first whole words (at
+# most 18 chars, a trailing "and"/"of"/... dropped) and then the session's name
+# as token_spend.py --session-label gives it; ~/.tmux.conf adds `5: ` and ` |`.
 # Renamed only on change, since the status line redraws constantly.
 if [ -n "$TMUX_PANE" ] && [ -n "$sid" ]; then
   wid="#${sid:0:4}"
   [ -n "$peer" ] && wid="@${peer#"$slug"-} ${wid}"
-  wtitle=$(printf '%s' "$title" | cut -c1-18 | sed 's/[[:space:]]*$//')
-  wname="${wid}${wtitle:+ $wtitle}"
+  wtitle=$(printf '%s' "$title" | awk '{o=""; for(i=1;i<=NF;i++){t=(o==""?$i:o" "$i); if(length(t)>18)break; o=t}; if(o=="" && NF)o=substr($1,1,18)
+    n=split(o,w," "); while(n>1 && tolower(w[n])~/^(and|or|the|of|for|to|with|a|an|in|on)$/)n--;
+    r=w[1]; for(i=2;i<=n;i++)r=r" "w[i]; print r}')
+  wname="${wtitle:+$wtitle }(${wid})"
   sock=${TMUX%%,*}; case $sock in /*) ;; *) sock=$HOME/$sock ;; esac
   cur=$(tmux -S "$sock" display -p -t "$TMUX_PANE" '#W' 2>/dev/null)
   [ "$cur" != "$wname" ] && tmux -S "$sock" rename-window -t "$TMUX_PANE" "$wname" >/dev/null 2>&1
