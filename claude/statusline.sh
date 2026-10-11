@@ -20,7 +20,7 @@
 #   -PUSH-   no -COMMIT- or -AWAIT-, but commits sit ahead of the upstream
 #   -AWAIT-  whether a background shell or agent this session
 #            launched or resumed is still running (a launch ID in the transcript with no
-#            task-notification status for it yet; the payload has no task field).
+#            task-notification or TaskStop for it yet; the payload has no task field).
 #
 # The peer names themselves (ilion-c3, ilion-54) are assigned by the peer
 # registry and are NOT in the statusline payload; the id prefix is the
@@ -92,12 +92,16 @@ if [ -n "$tp" ] && [ -r "$tp" ]; then
   # task-notification closes it, so an agent resumed after it finished counts again.
   # $open must always bind (null when the record launches nothing): a reduce step
   # that yields no output is skipped, which would drop every closing record.
-  running=$(grep -E 'backgroundTaskId|async_launched|resumedAgentId|task-notification' "$tp" 2>/dev/null | jq -rs '
+  running=$(grep -E 'backgroundTaskId|async_launched|resumedAgentId|task-notification|Successfully stopped task' "$tp" 2>/dev/null | jq -rs '
     reduce .[] as $r ({};
       ([$r.toolUseResult? | objects
         | (.backgroundTaskId // (select(.status == "async_launched") | .agentId)
            // .resumedAgentId) // empty][0]) as $open
       | if $open then .[$open] = 1 else . end
+      # TaskStop ends a task without a task-notification.
+      | ([$r.toolUseResult? | objects | select((.message? // "") | startswith("Successfully stopped task"))
+          | .task_id // empty][0]) as $stopped
+      | if $stopped then .[$stopped] = 0 else . end
       | if ($r | (.origin.kind? == "task-notification" or .type == "queue-operation"
                   or .type == "attachment"))
         then reduce ($r | tostring | scan("<task-id>([^<\\\\]+)</task-id>")[0]) as $c (.; .[$c] = 0)
