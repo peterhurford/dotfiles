@@ -9,6 +9,9 @@
 #   #abc123  the Claude Code session-id prefix: the name of this session's
 #            claims file in .state/sync_claims/ and of its transcript. It is
 #            NOT the [ref] that ListAgents shows
+#   @84      the peer name other sessions message it by (election-model-84),
+#            from the session registry ~/.claude/sessions/<pid>.json; shortened
+#            to its suffix when the rest is just this directory's name
 #   title    the session's own name, the fastest way to tell them apart
 #   O5.5     the model, initial + version (F5.1, S5.5, H5.5)
 #   87k/1M   how deep the session is: the context the NEXT request will
@@ -20,11 +23,8 @@
 #   -PUSH-   no -COMMIT- or -AWAIT-, but commits sit ahead of the upstream
 #   -AWAIT-  whether a background shell or agent this session
 #            launched or resumed is still running (a launch ID in the transcript with no
-#            task-notification or TaskStop for it yet; the payload has no task field).
+#            task-notification, TaskStop or user stop for it yet; the payload has no task field).
 #
-# The peer names themselves (ilion-c3, ilion-54) are assigned by the peer
-# registry and are NOT in the statusline payload; the id prefix is the
-# correlation key that is.
 #
 # Outside a git repo, prints the directory, id and title.
 
@@ -45,6 +45,16 @@ name=$(basename "$dir")
 sid=$(field '.session_id' 'session_id')
 id=""
 [ -n "$sid" ] && id=" · #${sid:0:6}"
+# Peer name: the registry entry whose sessionId is this session's.
+if [ -n "$sid" ]; then
+  peer=$(jq -r --arg s "$sid" 'select(.sessionId == $s) | .name // empty' ~/.claude/sessions/*.json 2>/dev/null | head -1)
+  slug=$(printf '%s' "$name" | tr '_' '-')
+  case "$peer" in
+    "") ;;
+    "$slug"-*) id="${id} @${peer#"$slug"-}" ;;
+    *) id="${id} @${peer}" ;;
+  esac
+fi
 
 title=$(field '.session_name' 'session_name')
 # Keep the tail of the bar readable: one line, no wrapping.
@@ -92,12 +102,18 @@ if [ -n "$tp" ] && [ -r "$tp" ]; then
   # task-notification closes it, so an agent resumed after it finished counts again.
   # $open must always bind (null when the record launches nothing): a reduce step
   # that yields no output is skipped, which would drop every closing record.
-  running=$(grep -E 'backgroundTaskId|async_launched|resumedAgentId|task-notification|Successfully stopped task' "$tp" 2>/dev/null | jq -rs '
+  running=$(grep -E 'backgroundTaskId|async_launched|resumedAgentId|task-notification|Successfully stopped task|was stopped by the user' "$tp" 2>/dev/null | jq -rs '
     reduce .[] as $r ({};
       ([$r.toolUseResult? | objects
         | (.backgroundTaskId // (select(.status == "async_launched") | .agentId)
            // .resumedAgentId) // empty][0]) as $open
       | if $open then .[$open] = 1 else . end
+      # An agent the user stops is reported by its description only.
+      | ([$r.toolUseResult? | objects | select(.status == "async_launched") | [.description, .agentId]][0]) as $d
+      | if $d then .["desc:" + $d[0]] = $d[1] else . end
+      | ([$r | select(.type == "queue-operation") | .content? | strings
+          | capture("^Background agent \"(?<d>.*)\" was stopped by the user").d][0]) as $ud
+      | if $ud and .["desc:" + $ud] then .[.["desc:" + $ud]] = 0 else . end
       # TaskStop ends a task without a task-notification.
       | ([$r.toolUseResult? | objects | select((.message? // "") | startswith("Successfully stopped task"))
           | .task_id // empty][0]) as $stopped
