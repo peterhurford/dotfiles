@@ -1,20 +1,19 @@
 #!/bin/bash
-# Claude Code statusline: worktree · branch · dirty · id · session title
+# Claude Code statusline, e.g.
+#   headquarters @a4 #22f2 <master>: "Title" (O5.5 @ 95k/1M | 7d 47%/62%)  -COMMIT-
 #
-# Built for several Claude sessions running against the same repo at once.
-# Three things distinguish them, in the order they are useful:
+# Built for several Claude sessions running against the same repo at once:
 #
 #   ⑂        this is a linked worktree, not the main checkout
-#   branch   which branch it is on
-#   #abc123  the Claude Code session-id prefix: the name of this session's
-#            claims file in .state/sync_claims/ and of its transcript. It is
-#            NOT the [ref] that ListAgents shows
-#   @84      the peer name other sessions message it by (election-model-84),
+#   @a4      the peer name other sessions message it by (headquarters-a4),
 #            from the session registry ~/.claude/sessions/<pid>.json; shortened
 #            to its suffix when the rest is just this directory's name
+#   #22f2    the first 4 hex of the session id (its transcript); with @a4, the
+#            session name token_spend.py --session-label prints
+#   <branch> which branch it is on; dropped when it repeats the directory name
 #   title    the session's own name, the fastest way to tell them apart
 #   O5.5     the model, initial + version (F5.1, S5.5, H5.5)
-#   87k/1M   how deep the session is: the context the NEXT request will
+#   95k/1M   how deep the session is: the context the NEXT request will
 #            re-read (current_usage summed) over the window.
 #            At 150k+ the context reads ⚠150k: past that, /handoff and restart
 #            beats riding the session on (cache reads are the bill).
@@ -44,15 +43,15 @@ name=$(basename "$dir")
 
 sid=$(field '.session_id' 'session_id')
 id=""
-[ -n "$sid" ] && id=" · #${sid:0:6}"
+[ -n "$sid" ] && id=" #${sid:0:4}"
 # Peer name: the registry entry whose sessionId is this session's.
 if [ -n "$sid" ]; then
   peer=$(jq -r --arg s "$sid" 'select(.sessionId == $s) | .name // empty' ~/.claude/sessions/*.json 2>/dev/null | head -1)
   slug=$(printf '%s' "$name" | tr '_' '-')
   case "$peer" in
     "") ;;
-    "$slug"-*) id="${id} @${peer#"$slug"-}" ;;
-    *) id="${id} @${peer}" ;;
+    "$slug"-*) id=" @${peer#"$slug"-}${id}" ;;
+    *) id=" @${peer}${id}" ;;
   esac
 fi
 
@@ -73,14 +72,14 @@ fi
 
 # Keep the tail of the bar readable: one line, no wrapping.
 if [ ${#title} -gt 32 ]; then title="${title:0:29}..."; fi
-[ -n "$title" ] && title=" · ${title}"
+[ -n "$title" ] && title=" \"${title}\""
 
 model=$(field '.model.display_name' 'display_name')
 # "Opus 5 (1M context)" -> "Opus 5": the parenthetical is the same on every
 # session that has it, so it costs bar width without distinguishing anything.
 model=${model%% (*}
 model=$(printf '%s' "$model" | sed 's/^\([A-Z]\)[a-z]* /\1/')
-[ -n "$model" ] && model=" · ${model}"
+[ -n "$model" ] && model="${model}"
 
 # Depth: context from the last request's usage.
 depth=""
@@ -91,7 +90,7 @@ if [ "${ctx:-0}" -gt 0 ] 2>/dev/null; then
   w=""
   if [ "${win:-0}" -ge 1000000 ] 2>/dev/null; then w="/1M"
   elif [ "${win:-0}" -gt 0 ] 2>/dev/null; then w="/$((win / 1000))k"; fi
-  if [ "$k" -ge 150 ]; then depth="${depth} · ⚠${k}k${w}"; else depth="${depth} · ${k}k${w}"; fi
+  if [ "$k" -ge 150 ]; then depth="⚠${k}k${w}"; else depth="${k}k${w}"; fi
 fi
 
 # Weekly budget pace: 7d 42%/57% is usage over share of the week elapsed,
@@ -104,7 +103,7 @@ pace=$(printf '%s' "$input" | jq -r --argjson now "$(date +%s)" '
   | (if $el < 0 then 0 elif $el > 100 then 100 else $el end | floor) as $e
   | (.used_percentage | floor) as $u
   | (if $u > $e then "⚠" else "" end) + "7d \($u)%/\($e)%"' 2>/dev/null)
-[ -n "$pace" ] && depth="${depth} · ${pace}"
+[ -n "$pace" ] && depth="${depth:+$depth | }${pace}"
 
 # Background work: launched IDs minus those a task-notification has closed
 # (logged as a user turn with origin.kind, or in older sessions a queue record).
@@ -137,12 +136,14 @@ if [ -n "$tp" ] && [ -r "$tp" ]; then
         then reduce ($r | tostring | scan("<task-id>([^<\\\\]+)</task-id>")[0]) as $c (.; .[$c] = 0)
         else . end)
     | [.[] | select(. == 1)] | length' 2>/dev/null)
-  [ "${running:-0}" -gt 0 ] && tasks=" · -AWAIT-"
+  [ "${running:-0}" -gt 0 ] && tasks="  -AWAIT-"
 fi
-depth="${depth}${tasks}"
+# `(O5.5 @ 95k/1M | 7d 47%/62%)`; empty parts drop out.
+paren="${model}${model:+${depth:+ @ }}${depth}"
+[ -n "$paren" ] && paren=" (${paren})"
 
 if ! git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  printf '%s%s%s%s%s' "$name" "$id" "$title" "$model" "$depth"
+  printf '%s%s:%s%s%s' "$name" "$id" "$title" "$paren" "$tasks"
   exit 0
 fi
 
@@ -158,20 +159,20 @@ case "$common" in "$top"/*) ;; *) mark="⑂ " ;; esac
 
 n=$(git -C "$dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 dirty=""
-[ "${n:-0}" -gt 0 ] 2>/dev/null && dirty=" · -COMMIT-"
+[ "${n:-0}" -gt 0 ] 2>/dev/null && dirty="  -COMMIT-"
 # Committed but not pushed: ahead of the upstream (no upstream, no marker).
 if [ -z "$dirty" ]; then
   ahead=$(git -C "$dir" rev-list --count @{u}..HEAD 2>/dev/null)
-  [ "${ahead:-0}" -gt 0 ] 2>/dev/null && dirty=" · -PUSH-"
+  [ "${ahead:-0}" -gt 0 ] 2>/dev/null && dirty="  -PUSH-"
 fi
 # Running work will likely change the tree further; commit once it lands.
-[ "$tasks" = " · -AWAIT-" ] && dirty=""
+[ -n "$tasks" ] && dirty=""
 
 # Branch is dropped when it only repeats the worktree directory name, which
 # is the usual case for `.claude/worktrees/<x>` on branch `<x>` -- printing
 # both costs half the bar and says nothing.
 if [ "$branch" = "$name" ] || [ "$branch" = "worktree-$name" ]; then
-  printf '%s%s%s%s%s%s%s' "$mark" "$name" "$id" "$title" "$model" "$depth" "$dirty"
+  printf '%s%s%s:%s%s%s%s' "$mark" "$name" "$id" "$title" "$paren" "$tasks" "$dirty"
 else
-  printf '%s%s · %s%s%s%s%s%s' "$mark" "$name" "$branch" "$id" "$title" "$model" "$depth" "$dirty"
+  printf '%s%s%s <%s>:%s%s%s%s' "$mark" "$name" "$id" "$branch" "$title" "$paren" "$tasks" "$dirty"
 fi
