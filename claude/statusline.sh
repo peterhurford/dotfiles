@@ -58,14 +58,14 @@ fi
 
 title=$(field '.session_name' 'session_name')
 
-# tmux window name: `@a4 #22f249 topic`, both ids plus the title's first
-# words, so the window matches whichever id a message uses. Renamed only on
-# change, since the status line redraws constantly.
+# tmux window name: `@a4 topic`, the session's name (peer name, else
+# #sid prefix) plus the title's first words. Renamed only on change, since
+# the status line redraws constantly.
 if [ -n "$TMUX_PANE" ] && [ -n "$sid" ]; then
-  wpeer=""
-  [ -n "$peer" ] && wpeer="@${peer#"$slug"-} "
-  wtitle=$(printf '%s' "$title" | cut -c1-18 | sed 's/[[:space:]]*$//')
-  wname="${wpeer}#${sid:0:6}${wtitle:+ $wtitle}"
+  wid="#${sid:0:6}"
+  [ -n "$peer" ] && wid="@${peer#"$slug"-}"
+  wtitle=$(printf '%s' "$title" | cut -c1-22 | sed 's/[[:space:]]*$//')
+  wname="${wid}${wtitle:+ $wtitle}"
   sock=${TMUX%%,*}; case $sock in /*) ;; *) sock=$HOME/$sock ;; esac
   cur=$(tmux -S "$sock" display -p -t "$TMUX_PANE" '#W' 2>/dev/null)
   [ "$cur" != "$wname" ] && tmux -S "$sock" rename-window -t "$TMUX_PANE" "$wname" >/dev/null 2>&1
