@@ -15,7 +15,7 @@
 #   O5.5     the model, initial + version (F5.1, S5.5, H5.5)
 #   95k/1M   how deep the session is: the context the NEXT request will
 #            re-read (current_usage summed) over the window.
-#            At 150k+ the context reads ⚠150k: past that, /handoff and restart
+#            At 150k+ the context reads !!150k: past that, /handoff and restart
 #            beats riding the session on (cache reads are the bill).
 #
 #   -COMMIT- the checkout has uncommitted files (blank when clean or -AWAIT-)
@@ -93,19 +93,19 @@ if [ "${ctx:-0}" -gt 0 ] 2>/dev/null; then
   w=""
   if [ "${win:-0}" -ge 1000000 ] 2>/dev/null; then w="/1M"
   elif [ "${win:-0}" -gt 0 ] 2>/dev/null; then w="/$((win / 1000))k"; fi
-  if [ "$k" -ge 150 ]; then depth="⚠${k}k${w}"; else depth="${k}k${w}"; fi
+  if [ "$k" -ge 150 ]; then depth="!!${k}k${w}"; else depth="${k}k${w}"; fi
 fi
 
 # Weekly budget pace: 7d 42%/57% is usage over share of the week elapsed,
 # elapsed derived from rate_limits.seven_day.resets_at (epoch s). Usage ahead
-# of the clock reads ⚠. Absent until the session's first API response.
+# of the clock reads !!. Absent until the session's first API response.
 pace=$(printf '%s' "$input" | jq -r --argjson now "$(date +%s)" '
   .rate_limits.seven_day // empty
   | select(.resets_at and .used_percentage != null)
   | (100 - ((.resets_at - $now) / 6048)) as $el
   | (if $el < 0 then 0 elif $el > 100 then 100 else $el end | floor) as $e
   | (.used_percentage | floor) as $u
-  | (if $u > $e then "⚠" else "" end) + "7d \($u)%/\($e)%"' 2>/dev/null)
+  | (if $u > $e then "!!" else "" end) + "7d \($u)%/\($e)%"' 2>/dev/null)
 [ -n "$pace" ] && depth="${depth:+$depth | }${pace}"
 
 # Background work: launched IDs minus those a task-notification has closed
