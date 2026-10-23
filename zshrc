@@ -1,5 +1,5 @@
 # path
-export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/Users/peterhurford/.pyenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/texlive/2023/bin/universal-darwin"
+export PATH="$HOME/.pyenv/shims:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/Postgres.app/Contents/Versions/latest/bin:/usr/local/texlive/2023/bin/universal-darwin"
 
 
 # general aliases
@@ -153,6 +153,7 @@ export CPPFLAGS="-I/usr/local/opt/libomp/include"
 
 # Initialize
 eval "$(/opt/homebrew/bin/brew shellenv)"           # Initialize brew
+export PATH="$HOME/.pyenv/shims:$PATH"               # pyenv Python ahead of Homebrew's, on any machine
 if [ "$TMUX" = "" ]; then tmux -S ~/default new-session; fi                # Run tmux if not tmux
 
 . "$HOME/.local/bin/env"
