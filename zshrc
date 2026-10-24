@@ -7,6 +7,7 @@ alias rebash='source ~/.zshrc'                        # so meta
 alias findport="lsof -i TCP | grep LISTEN"
 execute() { ps aux | grep -v "grep" | grep "$@" | awk '{print $2}' | xargs sudo kill }            # kills all processes that match passed string
 dbkill() { ps xa | grep postgres: | grep $1 | grep -v grep | awk {'print $1'} | xargs kill }      # kill all connections to a database
+alias tmux="tmux -S ~/default"                      # one tmux server; its socket is ~/default, which plain tmux would miss
 tmuxkill() { tmux ls | grep -v attached | awk {'print $1'} | sed "s/://" | xargs -n 1 -I{} tmux kill-session -t {} }
 v() { if [[ -z $1 ]]; then vim .; else; vim $1; fi }    # Open all files in vim or open particular file in vim
 
