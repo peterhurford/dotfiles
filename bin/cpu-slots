@@ -9,9 +9,9 @@
 Pool: N = $CPU_SLOTS (default cores - 2, at least 2) lock files in ~/.cache/cpu-slots/,
 held with flock, so a slot frees itself when its holder dies. A request waits until all
 its K slots are free; K is capped at what the caller may use. --bg (sweeps, searches)
-may use only the first N - 2 slots, at most N / 2 of them per request, and runs CMD under
-nice 10: two long jobs share the machine instead of one queueing for hours, and 2 slots
-stay free for foreground work (a single run, a landing check).
+may use only the first N - 2 slots, at most 2N / 3 of them per request (8 of 12), and runs
+CMD under nice 10: a second long job still gets a share instead of queueing for hours, and
+2 slots stay free for foreground work (a single run, a landing check).
 
 The granted count goes to CMD as $CPU_SLOTS_HELD; size the worker pool from it. A
 process that finds $CPU_SLOTS_HELD already set is inside a holder and runs at once, so
@@ -55,7 +55,7 @@ def take(k, bg, quiet=False, owner=None):
     n = pool_size()
     usable = n - 2 if bg and n > 2 else n
     if bg:
-        k = min(k, n // 2)
+        k = min(k, 2 * n // 3)
     k = _grab.k = max(1, min(k, usable))
     owner = owner or os.getpid()
     os.makedirs(DIR, exist_ok=True)
