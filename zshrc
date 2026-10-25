@@ -33,7 +33,6 @@ x() {
 bootpython() {
   eval "$(pyenv init --path)"
   eval "$(pyenv virtualenv-init -)"
-  pyenv global 3.14.0
   export PYENV_VERSION=dev  # dev via shims, without setting VIRTUAL_ENV, so Poetry uses each project's own venv
 }
 jupe() {
