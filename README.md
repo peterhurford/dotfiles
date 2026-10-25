@@ -82,6 +82,8 @@ ln -s ~/dev/dotfiles/bash_profile ~/.bash_profile
 mkdir -p ~/.claude
 ln -sf ~/dev/dotfiles/claude/statusline.sh ~/.claude/statusline.sh
 # then in ~/.claude/settings.json: "statusLine": {"type": "command", "command": "~/.claude/statusline.sh"}
+mkdir -p ~/.local/bin
+ln -sf ~/dev/dotfiles/bin/cpu-slots ~/.local/bin/cpu-slots  # machine-wide CPU pool for heavy jobs; cpu-slots --help
 
 ## Initialize
 tmux

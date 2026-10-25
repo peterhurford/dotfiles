@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Machine-wide CPU slot pool shared by every repo and session on this machine.
+
+  cpu-slots [--bg] [--slots K] -- CMD ARG...   run CMD while holding K slots
+  cpu-slots --hold [--bg] [--slots K]           hold K slots until stdin closes
+  cpu-slots --status                            which slots are held, by which pid
+  cpu-slots --selftest
+
+Pool: N = $CPU_SLOTS (default cores - 2, at least 2) lock files in ~/.cache/cpu-slots/,
+held with flock, so a slot frees itself when its holder dies. A request waits until all
+its K slots are free; K is capped at what the caller may use. --bg (sweeps, searches)
+may use only the first N - 2 slots, at most N / 2 of them per request, and runs CMD under
+nice 10: two long jobs share the machine instead of one queueing for hours, and 2 slots
+stay free for foreground work (a single run, a landing check).
+
+The granted count goes to CMD as $CPU_SLOTS_HELD; size the worker pool from it. A
+process that finds $CPU_SLOTS_HELD already set is inside a holder and runs at once, so
+a pooled script that calls another pooled script never waits on itself.
+
+--hold is for callers that are not a command line (a Node or Python script sizing its
+own pool): spawn it with stdin as a pipe, read one line `granted K`, keep the pipe open
+while working. When the caller exits the pipe closes and the slots free.
+"""
+import fcntl, os, signal, subprocess, sys, tempfile, time
+
+DIR = os.path.expanduser(os.environ.get("CPU_SLOTS_DIR", "~/.cache/cpu-slots"))
+
+
+def pool_size():
+    return int(os.environ.get("CPU_SLOTS") or max(2, (os.cpu_count() or 4) - 2))
+
+
+def _grab(paths, held, owner):
+    for path in paths:
+        if any(h.name == path for h in held):
+            continue
+        f = open(path, "a+")
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            f.close()
+            continue
+        f.seek(0); f.truncate(); f.write(f"{owner}\n"); f.flush()
+        held.append(f)
+        if len(held) == len(paths) or len(held) == _grab.k:
+            break
+
+
+def take(k, bg, quiet=False, owner=None):
+    """Block until k slots are held; returns the open files (closing releases them).
+
+    First try for all k at once. Failing that, join the queue (one waiter at a time) and
+    keep each slot as it frees until k are held: only the queue head holds a partial set,
+    so two waiters can't deadlock, and a big request isn't starved by small ones."""
+    n = pool_size()
+    usable = n - 2 if bg and n > 2 else n
+    if bg:
+        k = min(k, n // 2)
+    k = _grab.k = max(1, min(k, usable))
+    owner = owner or os.getpid()
+    os.makedirs(DIR, exist_ok=True)
+    paths = [os.path.join(DIR, str(i)) for i in range(usable)]
+    held = []
+    _grab(paths, held, owner)
+    if len(held) == k:
+        return held
+    for f in held:
+        f.close()
+    held = []
+    if not quiet:
+        print(f"cpu-slots: waiting for {k} of {usable} slots (cpu-slots --status)", file=sys.stderr, flush=True)
+    queue = open(os.path.join(DIR, "queue"), "a")
+    fcntl.flock(queue, fcntl.LOCK_EX)
+    while True:
+        _grab(paths, held, owner)
+        if len(held) == k:
+            queue.close()
+            return held
+        time.sleep(2)
+
+
+def status():
+    n = pool_size()
+    os.makedirs(DIR, exist_ok=True)
+    for i in range(n):
+        path = os.path.join(DIR, str(i))
+        with open(path, "a+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                state = "free"
+            except BlockingIOError:
+                f.seek(0)
+                pid = f.read().strip()
+                cmd = subprocess.run(["ps", "-o", "command=", "-p", pid], capture_output=True, text=True).stdout.strip() if pid else ""
+                state = f"held pid {pid} {cmd[:100]}"
+        print(f"{i:>2}{' (fg only)' if i >= n - 2 and n > 2 else ''}: {state}")
+
+
+def selftest():
+    global DIR
+    signal.alarm(60)  # a wedged take() fails the test instead of hanging it
+    with tempfile.TemporaryDirectory() as d:
+        DIR = d
+        os.environ["CPU_SLOTS"] = "4"
+        a = take(2, bg=True, quiet=True)  # bg may use 2 of 4
+        assert len(a) == 2
+        b = take(2, bg=False, quiet=True)  # fg gets the 2 fg-only slots
+        assert len(b) == 2 and {f.name for f in a}.isdisjoint(f.name for f in b)
+        for f in a:
+            f.close()
+        c = take(1, bg=True, quiet=True)  # a freed bg slot is reusable
+        assert len(c) == 1
+        me = os.path.realpath(sys.argv[0])
+        env = dict(os.environ, CPU_SLOTS_DIR=d)
+        out = subprocess.run([me, "--slots", "1", "--", "sh", "-c", "echo $CPU_SLOTS_HELD"], env=env,
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+        assert out == "1", out
+        nested = subprocess.run([me, "--slots", "4", "--", "sh", "-c", "echo $CPU_SLOTS_HELD"],
+                                env=dict(env, CPU_SLOTS_HELD="3"), capture_output=True, text=True, timeout=10).stdout.strip()
+        assert nested == "3", nested  # inside a holder: runs at once, keeps the outer grant
+        p = subprocess.Popen([me, "--hold", "--slots", "1"], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        assert p.stdout.readline().strip() == "granted 1"
+        p.stdin.close(); p.wait(timeout=10)  # closing stdin frees it
+        for f in b + c:
+            f.close()
+        assert len(take(9, bg=False, quiet=True)) == 4  # capped at the pool
+        hold = take(3, bg=False, quiet=True)
+        big = subprocess.Popen([me, "--slots", "4", "--", "true"], env=env, stderr=subprocess.DEVNULL)
+        time.sleep(3)  # the 4-slot request queues and keeps the free slot
+        assert big.poll() is None
+        for f in hold:
+            f.close()
+        assert big.wait(timeout=10) == 0  # gets all 4 once they free
+    print("cpu-slots: selftest ok")
+
+
+def main():
+    a = sys.argv[1:]
+    i = a.index("--") if "--" in a else len(a)
+    opts, cmd = a[:i], a[i + 1:]
+    if "--selftest" in opts:
+        return selftest()
+    if "--status" in opts:
+        return status()
+    if not cmd and "--hold" not in opts or "-h" in opts or "--help" in opts:
+        sys.exit(__doc__)
+    bg = "--bg" in opts
+    k = int(opts[opts.index("--slots") + 1]) if "--slots" in opts else 1
+    inherited = os.environ.get("CPU_SLOTS_HELD")
+    held = [] if inherited else take(k, bg, owner=os.getppid() if "--hold" in opts else None)
+    granted = inherited or str(len(held))
+    if "--hold" in opts:
+        print(f"granted {granted}", flush=True)
+        sys.stdin.read()
+        return
+    env = dict(os.environ, CPU_SLOTS_HELD=granted)
+    p = subprocess.Popen(cmd, env=env, preexec_fn=(lambda: os.nice(10)) if bg and not inherited else None)
+    while True:
+        try:
+            sys.exit(p.wait())
+        except KeyboardInterrupt:
+            continue  # the child got the same SIGINT; wait for it to finish
+
+
+if __name__ == "__main__":
+    main()
