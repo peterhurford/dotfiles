@@ -107,12 +107,15 @@ pace=$(printf '%s' "$input" | jq -r --argjson now "$(date +%s)" '
   | (.used_percentage | floor) as $u
   | (if $u > $e then "!!" else "" end) + "7d \($u)%/\($e)%"' 2>/dev/null)
 [ -n "$pace" ] && depth="${depth:+$depth | }${pace}"
+# The 5-hour limit, shown only from 50% used: `7d 76%/76% · 5h 62%`.
+five=$(printf '%s' "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty | floor | select(. >= 50) | "5h \(.)%"' 2>/dev/null)
+[ -n "$five" ] && depth="${depth:+$depth · }${five}"
 
 # The plan's rate limits as the last response reported them, for night_sprint_run.sh's budget
 # (headquarters tools/usage_pace.py reads it). Written only when they change; seen_at is when.
 rl=$(printf '%s' "$input" | jq -c '.rate_limits // empty' 2>/dev/null)
 USAGE_FILE="$HOME/dev/headquarters/.state/usage_pace.json"
-if [ -n "$rl" ] && [ "$rl" != "$(jq -c '.rate_limits' "$USAGE_FILE" 2>/dev/null)" ]; then
+if [ -n "$rl" ] && [ -d "${USAGE_FILE%/*}" ] && [ "$rl" != "$(jq -c '.rate_limits' "$USAGE_FILE" 2>/dev/null)" ]; then
   jq -n --argjson rl "$rl" --argjson t "$(date +%s)" '{rate_limits: $rl, seen_at: $t}' \
     > "$USAGE_FILE.tmp.$$" 2>/dev/null && mv "$USAGE_FILE.tmp.$$" "$USAGE_FILE"
 fi
